@@ -11,26 +11,26 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## M1, Week 1: Proposal and feasibility
-- [ ] Problem, goal, objectives and scope agreed (see REQUIREMENTS.md)
-- [ ] Public GitHub repo created
+- [x] Problem, goal, objectives and scope agreed (see REQUIREMENTS.md)
+- [x] Public GitHub repo created
 - [ ] Feasibility check on my phone: Wi-Fi scan rate (with and without throttling), step detection, compass and gyroscope, and barometer present
 - [x] Target user group named (small and medium establishment owners; CISC as pilot site)
 - [ ] Up to 3 titles proposed
-- [ ] Proposal submitted and approved (no work counts before approval)
+- [x] Proposal submitted and approved (no work counts before approval)
 
 ## M2, Week 2: Design
-- [ ] Database schema (users, roles, buildings, floors, survey sessions, readings, checkpoints, access points, coverage grids)
-- [ ] OpenAPI spec draft (endpoints for auth, buildings, floors, surveys, readings, maps, admin)
+- [x] Database schema (users, roles, buildings, floors, survey sessions, readings, checkpoints, access points, coverage grids)
+- [x] OpenAPI spec draft (endpoints for auth, buildings, floors, surveys, readings, maps, admin)
 - [ ] Wireframes for the 8+ screens
-- [ ] Interpolation and access point estimation methods chosen
+- [x] Interpolation and access point estimation methods chosen
 - [ ] RA 10173 privacy notice and data handling plan
 - [ ] API framework and Flutter packages chosen
 
 ## M3, Week 3: API foundation and deployment (MVP part 1)
 - [x] API project set up in `api/`
 - [x] PostgreSQL with migrations
-- [ ] Register and sign-in with JWT (FR-1)
-- [ ] Roles and access control: Admin, Surveyor (FR-2, FR-3)
+- [x] Register and sign-in with JWT (FR-1)
+- [x] Roles and access control: Admin, Surveyor (FR-2, FR-3)
 - [ ] Buildings and floors CRUD (FR-4, FR-5)
 - [ ] bcrypt, input validation, pagination, filtering and sorting on list endpoints (FR-3a, FR-3b)
 - [x] `/api/health` (FR-3c)
