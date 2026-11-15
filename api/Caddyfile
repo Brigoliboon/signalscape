@@ -1,4 +1,6 @@
-:80 {
+# SITE_ADDRESS is the public hostname in production (Caddy gets HTTPS
+# certificates automatically). Defaults to plain HTTP on :80 for local runs.
+{$SITE_ADDRESS::80} {
 	encode gzip
 
 	handle /api/* {

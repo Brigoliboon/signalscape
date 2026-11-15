@@ -21,7 +21,7 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 | API | FastAPI, SQLAlchemy, Alembic, Pydantic, bcrypt, JWT, NumPy/SciPy |
 | Database | PostgreSQL |
 | Tests | pytest with pytest-cov, `flutter test` |
-| Deploy | Docker Compose, Caddy, Cloudflare Tunnel (HTTPS), GitHub Actions with a self-hosted runner |
+| Deploy | Docker Compose, Caddy (automatic HTTPS), GitHub Actions with a self-hosted runner |
 
 ## Repo layout
 ```
@@ -77,13 +77,14 @@ Set these in the repo under Settings → Secrets and variables → Actions:
 |---|---|
 | `POSTGRES_PASSWORD` | Database password on the server |
 | `JWT_SECRET` | Signing key for API tokens |
-| `API_BASE_URL` | Public tunnel URL for the smoke test (e.g. `https://signalscape.example.com`) |
+| `SITE_ADDRESS` | Public hostname Caddy serves (`signalscape.boonbrigoli.site`) |
+| `API_BASE_URL` | Public URL for the smoke test (`https://signalscape.boonbrigoli.site`) |
 
 ### Self-hosted runner
 CD deploys on a runner installed on the server (`runs-on: self-hosted`). The runner user must be able to run Docker. Add it from the GitHub repo: Settings → Actions → Runners → New self-hosted runner, then follow the Linux steps. The runner on the course VM is `signalscape-vm` (labels `self-hosted, Linux, X64, signalscape`).
 
-### Public access (Cloudflare Tunnel)
-Caddy listens only on `127.0.0.1:8080` (`HTTP_PORT`) on the server. It serves `/api/*` from the API and a placeholder page for everything else. `cloudflared` runs on the server as a service and forwards the public hostname to `http://localhost:8080`, and Cloudflare handles HTTPS. No inbound ports need to be open.
+### Public access
+Production runs at https://signalscape.boonbrigoli.site. An A record points that hostname at the VM, and the VM's cloud firewall and `iptables` allow TCP 80 and 443. Caddy serves the hostname from `SITE_ADDRESS`, gets its HTTPS certificate from Let's Encrypt automatically (stored in the `caddy_data` volume), sends `/api/*` to the API, and shows a placeholder page for everything else. Locally `SITE_ADDRESS` defaults to `:80`, plain HTTP.
 
 ## Contributing
 Read `AGENTS.md` first. In short, work through `IMPLEMENTATION.md` in order, use one branch per item, add tests with every change, open a pull request with passing CI, and tick the checkbox in the same pull request.

@@ -47,7 +47,11 @@ services:
     image: caddy:2-alpine
     profiles: ["prod"]
     ports:
-      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
