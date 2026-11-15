@@ -24,7 +24,8 @@ android {
         applicationId = "com.example.signalscape_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // wifi_scan, flutter_secure_storage and webview_flutter need API 24 or newer.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
