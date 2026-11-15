@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     bcrypt_rounds: int = Field(default=12, ge=4, le=15)
+    # Where uploaded floor plan images are stored (a Docker volume in production).
+    uploads_dir: str = "/data/uploads"
 
 
 @lru_cache
