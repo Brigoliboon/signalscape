@@ -1,0 +1,5 @@
+title = "SignalScape"
+
+[allowlist]
+description = "Placeholder values in example env files are not secrets"
+paths = ['''(^|/)\.env\.example$''']

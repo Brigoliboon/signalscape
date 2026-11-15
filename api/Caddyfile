@@ -1,0 +1,13 @@
+# SITE_ADDRESS is the public hostname in production (Caddy gets HTTPS
+# certificates automatically). Defaults to plain HTTP on :80 for local runs.
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		respond "SignalScape dashboard coming soon" 200
+	}
+}

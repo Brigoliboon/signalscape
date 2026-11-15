@@ -87,7 +87,7 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 | # | Requirement | How SignalScape meets it |
 |---|---|---|
 | C-1 | Team of 2 to 3, 8 weeks | Solo (Boon); confirm the instructor allows a solo project |
-| C-2 | Separate client app plus own REST API | Flutter app in `signalscape_mobile/`, REST API in `api/`; no direct database access from the app |
+| C-2 | Separate client app plus own REST API | Flutter app in `app/`, REST API in `api/`; no direct database access from the app |
 | C-3 | 8 or more screens | See section 8 |
 | C-4 | Postgres or MySQL | PostgreSQL |
 | C-5 | Docker | API, database and reverse proxy in Docker Compose |
@@ -142,7 +142,7 @@ Runs on every push and pull request. Merges to `main` deploy automatically. **Co
 - CI-5: Build the Docker image.
 - CI-6: Dependency and secret scanning (for example `npm audit`/`pip-audit` and GitHub secret scanning).
 
-**App (`signalscape_mobile/`)**
+**App (`app/`)**
 - CI-7: `flutter analyze` and `dart format` check.
 - CI-8: `flutter test` (unit and widget tests: sensor processing, step and floor logic, API client).
 - CI-9: Build a release APK and attach it to the workflow run (and to GitHub Releases on tags).

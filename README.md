@@ -21,13 +21,13 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 | API | FastAPI, SQLAlchemy, Alembic, Pydantic, bcrypt, JWT, NumPy/SciPy |
 | Database | PostgreSQL |
 | Tests | pytest with pytest-cov, `flutter test` |
-| Deploy | Docker Compose, Caddy (HTTPS), GitHub Actions with a self-hosted runner |
+| Deploy | Docker Compose, Caddy (automatic HTTPS), GitHub Actions with a self-hosted runner |
 
 ## Repo layout
 ```
 signalscape/
 ├── api/                  # FastAPI backend
-├── signalscape_mobile/   # Flutter Android app
+├── app/                  # Flutter Android app
 ├── .github/workflows/    # CI and CD
 ├── REQUIREMENTS.md       # What to build
 ├── IMPLEMENTATION.md     # Build order and progress
@@ -53,7 +53,7 @@ docker compose up -d      # starts the API and Postgres
 
 ### Mobile app
 ```bash
-cd signalscape_mobile
+cd app
 flutter pub get
 flutter run               # with an Android phone connected
 ```
@@ -62,13 +62,29 @@ Point the app's API base URL at your running API.
 ### Tests
 ```bash
 cd api && pytest --cov            # backend coverage must stay at 60% or more
-cd signalscape_mobile && flutter test
+cd app && flutter test
 ```
 
 ## CI/CD
-- **CI** runs on every push and pull request. It covers lint, tests with a Postgres container, the OpenAPI check, the Docker build, a dependency scan, `flutter analyze`, `flutter test` and the APK build.
-- **CD** runs on every merge to `main`. A self-hosted runner on the server rebuilds the image, runs migrations, restarts with Docker Compose behind Caddy and smoke tests `/api/health`.
+- **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It covers lint, tests with a Postgres container, the OpenAPI check, the Docker build, a dependency scan, `flutter analyze`, `flutter test` and the APK build. Backend coverage below 60% fails the build. Flutter jobs skip if `app/pubspec.yaml` is missing.
+- **CD** (`.github/workflows/cd.yml`) runs after CI succeeds on `main`. It pushes the API image to GitHub Container Registry, then a self-hosted runner pulls the image, restarts Docker Compose (with Caddy), runs migrations, and smoke tests `/api/health` and `/api/docs` through the public HTTPS URL.
 - The final release is tagged `v1.0`.
+
+### GitHub secrets (for CD)
+Set these in the repo under Settings → Secrets and variables → Actions:
+
+| Secret | Purpose |
+|---|---|
+| `POSTGRES_PASSWORD` | Database password on the server |
+| `JWT_SECRET` | Signing key for API tokens |
+| `SITE_ADDRESS` | Public hostname Caddy serves (`signalscape.boonbrigoli.site`) |
+| `API_BASE_URL` | Public URL for the smoke test (`https://signalscape.boonbrigoli.site`) |
+
+### Self-hosted runner
+CD deploys on a runner installed on the server (`runs-on: self-hosted`). The runner user must be able to run Docker. Add it from the GitHub repo: Settings → Actions → Runners → New self-hosted runner, then follow the Linux steps. The runner on the course VM is `signalscape-vm` (labels `self-hosted, Linux, X64, signalscape`).
+
+### Public access
+Production runs at https://signalscape.boonbrigoli.site. An A record points that hostname at the VM, and the VM's cloud firewall and `iptables` allow TCP 80 and 443. Caddy serves the hostname from `SITE_ADDRESS`, gets its HTTPS certificate from Let's Encrypt automatically (stored in the `caddy_data` volume), sends `/api/*` to the API, and shows a placeholder page for everything else. Locally `SITE_ADDRESS` defaults to `:80`, plain HTTP.
 
 ## Contributing
 Read `AGENTS.md` first. In short, work through `IMPLEMENTATION.md` in order, use one branch per item, add tests with every change, open a pull request with passing CI, and tick the checkbox in the same pull request.
