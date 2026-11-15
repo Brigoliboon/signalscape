@@ -3,13 +3,22 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../data/api_client.dart';
 import '../theme.dart';
+import 'map_screen.dart';
 
 /// The Three.js coverage page served by the API (FR-16), in a WebView.
 class ViewerScreen extends StatefulWidget {
-  const ViewerScreen({super.key, required this.api, required this.surveyId});
+  const ViewerScreen({
+    super.key,
+    required this.api,
+    required this.surveyId,
+    this.canProcess = false,
+  });
 
   final ApiClient api;
   final String surveyId;
+
+  /// Passed on to the 2D map, which can start processing for these users.
+  final bool canProcess;
 
   @override
   State<ViewerScreen> createState() => _ViewerScreenState();
@@ -49,7 +58,33 @@ class _ViewerScreenState extends State<ViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Coverage in 3D')),
+      appBar: AppBar(
+        title: const Text('Coverage in 3D'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (_) => MapScreen(
+                  api: widget.api,
+                  surveyId: widget.surveyId,
+                  canProcess: widget.canProcess,
+                  onOpen3d: (mapContext) =>
+                      Navigator.of(mapContext).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ViewerScreen(
+                            api: widget.api,
+                            surveyId: widget.surveyId,
+                            canProcess: widget.canProcess,
+                          ),
+                        ),
+                      ),
+                ),
+              ),
+            ),
+            child: const Text('2D map'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Stack(
           children: [

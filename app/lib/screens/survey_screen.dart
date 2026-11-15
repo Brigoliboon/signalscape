@@ -104,8 +104,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
     if (ok && mounted) {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              ViewerScreen(api: widget.session.api, surveyId: c.surveyId!),
+          builder: (_) => ViewerScreen(
+            api: widget.session.api,
+            surveyId: c.surveyId!,
+            canProcess: widget.session.user?.role != 'viewer',
+          ),
         ),
       );
     }

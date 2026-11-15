@@ -1,0 +1,42 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:signalscape_mobile/core/map_tiles.dart';
+
+void main() {
+  test('with no token the map uses OpenStreetMap and credits it', () {
+    for (final token in ['', '   ']) {
+      final t = MapTiles.forToken(token);
+      expect(t.usesMapbox, isFalse);
+      expect(t.urlTemplate, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+      expect(t.attribution, contains('OpenStreetMap'));
+      expect(t.attribution, isNot(contains('Mapbox')));
+      expect(t.tileDimension, 256);
+      expect(t.zoomOffset, 0);
+      expect(t.additionalOptions, isEmpty);
+    }
+  });
+
+  test('with a token it uses Mapbox 512 px tiles and credits both', () {
+    final t = MapTiles.forToken(' pk.test ');
+    expect(t.usesMapbox, isTrue);
+    expect(
+      t.urlTemplate,
+      'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/512/'
+      '{z}/{x}/{y}?access_token={accessToken}',
+    );
+    expect(t.additionalOptions, {'accessToken': 'pk.test'});
+    expect(t.tileDimension, 512);
+    expect(t.zoomOffset, -1);
+    expect(t.attribution, contains('Mapbox'));
+    expect(t.attribution, contains('OpenStreetMap'));
+  });
+
+  test('the style can be chosen', () {
+    final t = MapTiles.forToken('pk.x', style: 'satellite-v9');
+    expect(t.urlTemplate, contains('/mapbox/satellite-v9/'));
+  });
+
+  test('a build without a define falls back to OpenStreetMap', () {
+    // The test run passes no MAPBOX_TOKEN, and none is ever committed.
+    expect(MapTiles.current().usesMapbox, isFalse);
+  });
+}
