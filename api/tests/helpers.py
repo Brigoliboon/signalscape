@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models.building import Building, Floor
+from app.models.survey import Survey, SurveyStatus
 from app.models.user import User, UserRole
 
 PASSWORD = "correct horse battery"
@@ -19,6 +21,7 @@ def make_user(
     name: str = "Test User",
     password: str = PASSWORD,
     is_active: bool = True,
+    consented: bool = False,
 ) -> User:
     user = User(
         email=email or f"{uuid.uuid4().hex[:12]}@example.com",
@@ -26,6 +29,7 @@ def make_user(
         password_hash=hash_password(password),
         role=role,
         is_active=is_active,
+        consented_at=datetime.now(UTC) if consented else None,
     )
     db.add(user)
     db.commit()
@@ -77,3 +81,27 @@ def make_floor(
     db.commit()
     db.refresh(floor)
     return floor
+
+
+def make_survey(
+    db: Session,
+    building: Building,
+    surveyor: User,
+    *,
+    status: SurveyStatus = SurveyStatus.ACTIVE,
+    started_at: datetime | None = None,
+) -> Survey:
+    survey = Survey(
+        building_id=building.id,
+        surveyor_id=surveyor.id,
+        status=status,
+        origin_lat=14.5995,
+        origin_lng=120.9842,
+        origin_accuracy_m=5.0,
+    )
+    if started_at is not None:
+        survey.started_at = started_at
+    db.add(survey)
+    db.commit()
+    db.refresh(survey)
+    return survey
