@@ -8,6 +8,7 @@ import {
   cellLevels,
   cellPixels,
   countLevels,
+  dataExtent,
   floorElevation,
   formatDbm,
   hexToRgb,
@@ -99,4 +100,17 @@ test('fragment settings need a UUID survey id and a token', () => {
   assert.ok(isUuid(id));
   assert.ok(!isUuid('../etc/passwd'));
   assert.ok(!isUuid(null));
+});
+
+test('dataExtent is the block of cells that have data', () => {
+  // 4 columns x 3 rows, south row first; data only in the middle.
+  const values = [
+    null, null, null, null,
+    null, -60, null, null,
+    null, null, -70, null,
+  ];
+  assert.deepEqual(dataExtent(values, 4), { col0: 1, col1: 2, row0: 1, row1: 2 });
+  assert.deepEqual(dataExtent([-50], 1), { col0: 0, col1: 0, row0: 0, row1: 0 });
+  assert.equal(dataExtent([null, undefined, null, null], 2), null);
+  assert.equal(dataExtent([], 1), null);
 });

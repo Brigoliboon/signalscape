@@ -56,6 +56,27 @@ export function countLevels(levels) {
   return counts;
 }
 
+/**
+ * The smallest block of cells that holds data, as { col0, col1, row0, row1 }
+ * (inclusive), or null when the grid has no data at all.
+ */
+export function dataExtent(values, cols) {
+  let col0 = Infinity;
+  let col1 = -1;
+  let row0 = Infinity;
+  let row1 = -1;
+  values.forEach((value, index) => {
+    if (value === null || value === undefined) return;
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    col0 = Math.min(col0, col);
+    col1 = Math.max(col1, col);
+    row0 = Math.min(row0, row);
+    row1 = Math.max(row1, row);
+  });
+  return col1 < 0 ? null : { col0, col1, row0, row1 };
+}
+
 /** '#rrggbb' to [r, g, b] (0-255). */
 export function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);

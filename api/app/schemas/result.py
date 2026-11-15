@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -99,3 +100,36 @@ class NetworkRead(BaseModel):
     bssid: str
     reading_count: int
     max_rssi_dbm: int
+
+
+class TrailPoint(BaseModel):
+    """One place on the walk. ``kind`` is ``start`` (the survey origin),
+    ``reading`` (a Wi-Fi scan) or ``checkpoint``."""
+
+    floor_id: uuid.UUID
+    floor_level: int
+    lat: float
+    lng: float
+    at: datetime
+    kind: Literal["start", "reading", "checkpoint"]
+
+
+class TrailFloor(BaseModel):
+    floor_id: uuid.UUID
+    floor_level: int
+    points: list[TrailPoint]
+
+
+class TrailRead(BaseModel):
+    """The walk of a survey, in time order, with the start and the last place.
+
+    Only scan positions and checkpoints are uploaded, so the line is as fine as
+    the scans were. ``start`` is the survey origin placed on the floor of the
+    first point; ``end`` is the last scan or checkpoint. Both are ``null`` when
+    nothing has been uploaded yet.
+    """
+
+    survey_id: uuid.UUID
+    start: TrailPoint | None
+    end: TrailPoint | None
+    floors: list[TrailFloor]

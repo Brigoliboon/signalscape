@@ -25,6 +25,7 @@ from app.schemas.result import (
     NetworkRead,
     ProcessResult,
     SurveySummary,
+    TrailRead,
 )
 from app.schemas.survey import Bssid
 from app.services.export import geojson, readings_csv
@@ -36,6 +37,7 @@ from app.services.results import (
     stored_summary,
 )
 from app.services.surveys import get_survey_or_404
+from app.services.trail import trail_read
 
 router = APIRouter(prefix="/api/surveys", tags=["results"])
 
@@ -216,6 +218,19 @@ def list_networks(
             | cast(ScanReading.bssid, Text).ilike(pattern, escape="\\")
         )
     return paginate_rows(db, stmt, page, [*order_by, ScanReading.ssid.asc()])
+
+
+@router.get("/{survey_id}/trail", response_model=TrailRead)
+def get_trail(
+    survey_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TrailRead:
+    """The walk, floor by floor, in time order, from the scan positions and the
+    checkpoints, with the start and the last place. Works on the raw data, so it
+    is available before processing."""
+    survey = get_survey_or_404(db, user, survey_id)
+    return trail_read(db, survey)
 
 
 @router.get("/{survey_id}/geojson")

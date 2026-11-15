@@ -91,6 +91,23 @@ class SurveyController extends ChangeNotifier {
   double pulse = 0;
   final List<TrailPoint> trail = [];
 
+  /// Every step of the walk, so the path stays drawn between Wi-Fi scans
+  /// (Android only allows about four scans every two minutes).
+  final List<PathPoint> path = [];
+
+  /// Most breadcrumbs kept; the oldest go first.
+  static const maxPath = 5000;
+
+  /// The scan dots and the path on the floor being shown.
+  List<TrailPoint> get trailHere => [
+    for (final p in trail)
+      if (p.floorId == floor.id) p,
+  ];
+  List<PathPoint> get pathHere => [
+    for (final p in path)
+      if (p.floorId == floor.id) p,
+  ];
+
   // --- floors from the barometer (FR-9) ---
   /// Null until known; false means no barometer, so floors are picked by hand.
   bool? hasBarometer;
@@ -212,6 +229,7 @@ class SurveyController extends ChangeNotifier {
       ..y = r.y
       ..steps = r.steps;
     _cpSteps = r.steps;
+    _crumb();
     readings = await db.readingCount(r.surveyId);
     checkpoints = r.checkpoints;
     // Readings held before the app closed can no longer be corrected.
@@ -308,6 +326,7 @@ class SurveyController extends ChangeNotifier {
     floor = f;
     suggestion = null;
     _nextPreviewAt = DateTime.now();
+    _crumb();
     _saveActive();
   }
 
@@ -339,6 +358,7 @@ class SurveyController extends ChangeNotifier {
     _originLat = f.lat;
     _originLng = f.lng;
     _cpSteps = 0;
+    _crumb();
     await _startSensors();
     phase = SurveyPhase.active;
     await _saveActive();
@@ -406,8 +426,17 @@ class SurveyController extends ChangeNotifier {
     final h = _heading.heading;
     if (stepped && h != null) {
       tracker.step(h);
+      _crumb();
       _changed();
     }
+  }
+
+  /// Adds the current position to the path, on the floor being shown.
+  void _crumb() {
+    path.add(
+      PathPoint(tracker.x, tracker.y, tracker.steps.toDouble(), floor.id),
+    );
+    if (path.length > maxPath) path.removeAt(0);
   }
 
   void _onMag(MagnetometerEvent e) {
@@ -446,6 +475,7 @@ class SurveyController extends ChangeNotifier {
     suggestion = null;
     _baro?.confirm(f.level);
     _nextPreviewAt = DateTime.now();
+    _crumb();
     _saveActive();
     _changed();
   }
@@ -469,7 +499,9 @@ class SurveyController extends ChangeNotifier {
         _lastScanAt = now;
       } else {
         throttle.recordRefusal(now);
-        message = 'Android is limiting Wi-Fi scans; waiting a bit.';
+        message =
+            'Android is limiting Wi-Fi scans; waiting a bit. Turning off '
+            '"Wi-Fi scan throttling" in Developer options allows more.';
       }
     } finally {
       _scanning = false;
@@ -521,6 +553,7 @@ class SurveyController extends ChangeNotifier {
           tracker.y,
           levelFor(strongest, thresholds),
           steps.toDouble(),
+          floor.id,
         ),
       );
       if (trail.length > 3000) trail.removeAt(0);
@@ -604,6 +637,22 @@ class SurveyController extends ChangeNotifier {
         fixed[i].y,
         trail[i].level,
         trail[i].progress,
+        trail[i].floorId,
+      );
+    }
+    final fixedPath = spreadDrift(
+      [for (final p in path) DriftPoint(p.x, p.y, p.progress)],
+      errX,
+      errY,
+      startProgress: _cpSteps.toDouble(),
+      endProgress: end,
+    );
+    for (var i = 0; i < path.length; i++) {
+      path[i] = PathPoint(
+        fixedPath[i].x,
+        fixedPath[i].y,
+        path[i].progress,
+        path[i].floorId,
       );
     }
   }
