@@ -94,6 +94,16 @@ jobs:
             echo "API_BASE_URL secret is not set"
             exit 1
           fi
-          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$API_BASE_URL/api/health"
-          curl -fsS --retry 5 --retry-delay 2 "$API_BASE_URL/api/docs" >/dev/null
+          # The VM's curl (Ubuntu 20.04) has no --retry-all-errors, so retry in a loop.
+          for i in $(seq 1 12); do
+            if curl -fsS "$API_BASE_URL/api/health"; then
+              break
+            fi
+            if [ "$i" = 12 ]; then
+              echo "Health check failed"
+              exit 1
+            fi
+            sleep 5
+          done
+          curl -fsS "$API_BASE_URL/api/docs" >/dev/null
           echo "Smoke test passed"
