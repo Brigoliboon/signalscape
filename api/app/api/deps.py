@@ -1,10 +1,12 @@
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
@@ -57,3 +59,13 @@ def require_role(*roles: UserRole) -> Callable[..., User]:
 
 
 require_admin = require_role(UserRole.ADMIN)
+
+
+def get_uploads_dir() -> Path:
+    """Folder for uploaded floor plans. A dependency so tests can point it
+    at a temporary folder."""
+    return Path(get_settings().uploads_dir)
+
+
+# Building and floor routes: admins and surveyors may write. Viewers get 403.
+require_builder = require_role(UserRole.ADMIN, UserRole.SURVEYOR)

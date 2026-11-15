@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -6,11 +7,12 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_uploads_dir
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import ProfileUpdate, TokenResponse, UserCreate, UserRead
+from app.services.buildings import delete_plan_files, plan_files_for_owner
 from app.services.users import ensure_not_last_admin
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -124,10 +126,14 @@ def give_consent(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_me(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    uploads_dir: Path = Depends(get_uploads_dir),
 ) -> Response:
     """Delete your account and, through cascades, all of its data (FR-20)."""
     ensure_not_last_admin(db, user, "delete")
+    plan_files = plan_files_for_owner(db, user.id)
     db.delete(user)
     db.commit()
+    delete_plan_files(uploads_dir, plan_files)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

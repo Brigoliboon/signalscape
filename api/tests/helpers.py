@@ -5,6 +5,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
+from app.models.building import Building, Floor
 from app.models.user import User, UserRole
 
 PASSWORD = "correct horse battery"
@@ -48,3 +49,31 @@ def clear_admins(db: Session) -> None:
     """Remove existing admins (rolled back with the test) so counts are exact."""
     db.execute(delete(User).where(User.role == UserRole.ADMIN))
     db.commit()
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+JPEG_BYTES = b"\xff\xd8\xff\xe0" + b"\x00" * 32
+
+
+def make_building(
+    db: Session, owner: User, *, name: str | None = None, address: str | None = None
+) -> Building:
+    building = Building(
+        owner_id=owner.id,
+        name=name or f"Building {uuid.uuid4().hex[:8]}",
+        address=address,
+    )
+    db.add(building)
+    db.commit()
+    db.refresh(building)
+    return building
+
+
+def make_floor(
+    db: Session, building: Building, *, level: int = 0, label: str | None = None
+) -> Floor:
+    floor = Floor(building_id=building.id, level=level, label=label or f"L{level}")
+    db.add(floor)
+    db.commit()
+    db.refresh(floor)
+    return floor
