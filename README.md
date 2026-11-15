@@ -51,6 +51,15 @@ docker compose up -d      # starts the API and Postgres
 - API docs: http://localhost:8000/api/docs
 - Health check: http://localhost:8000/api/health
 
+#### First admin
+New accounts are Surveyors. Create the first admin from the command line (the password comes from `SIGNALSCAPE_ADMIN_PASSWORD`, or is prompted if unset):
+```bash
+cd api
+SIGNALSCAPE_ADMIN_PASSWORD='choose-a-password' python -m app.cli create-admin --email you@example.com --name "Your Name"
+# in Docker: docker compose exec -e SIGNALSCAPE_ADMIN_PASSWORD=... api python -m app.cli create-admin --email ... --name ...
+```
+Add `--promote` to turn an existing account into an admin. Admins can then manage other users through `/api/users`.
+
 ### Mobile app
 ```bash
 cd app
