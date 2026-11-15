@@ -58,6 +58,20 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Creates the account, then signs in with it. Throws [ApiException]; if the
+  /// account was created but the sign-in failed, the message says so.
+  Future<void> register(String name, String email, String password) async {
+    await api.register(name, email, password);
+    try {
+      await signIn(email, password);
+    } on ApiException catch (e) {
+      throw ApiException(
+        e.statusCode,
+        'Account created, but signing in failed: ${e.message} Go back and sign in.',
+      );
+    }
+  }
+
   Future<void> giveConsent() async {
     await api.giveConsent();
     user = await api.me();

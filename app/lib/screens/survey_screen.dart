@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../core/levels.dart';
 import '../core/sync_engine.dart';
+import '../data/active_survey.dart';
 import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/models.dart';
@@ -30,6 +31,7 @@ class SurveyScreen extends StatefulWidget {
     required Building building,
     required List<Floor> floors,
     required Floor floor,
+    ActiveSurvey? resume,
   }) async {
     final db = await LocalDb.open();
     final controller = SurveyController(
@@ -44,6 +46,8 @@ class SurveyScreen extends StatefulWidget {
       building: building,
       floors: floors,
       initialFloor: floor,
+      userId: session.user!.id,
+      resumeFrom: resume,
     );
     if (!context.mounted) return;
     await Navigator.of(context).push(
@@ -131,6 +135,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                   _StatusCard(c: c),
                   const SizedBox(height: 12),
                   _Stats(c: c),
+                  _FloorPanel(c: c),
                   const SizedBox(height: 12),
                   _TrailCard(c: c),
                   const SizedBox(height: 10),
@@ -389,6 +394,17 @@ class _TrailCard extends StatelessWidget {
               x: c.tracker.x,
               y: c.tracker.y,
               heading: c.heading,
+              preview: c.preview?.floorId == c.floor.id ? c.preview : null,
+              thresholds: c.thresholds,
+            ),
+          ),
+          Positioned(
+            left: 12,
+            bottom: 10,
+            right: 12,
+            child: Text(
+              _previewLine(c),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ),
           Positioned(
@@ -418,6 +434,89 @@ class _TrailCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+String _previewLine(SurveyController c) {
+  final at = c.previewAt;
+  if (c.preview == null || c.preview!.floorId != c.floor.id) {
+    return 'Heatmap preview appears here about every minute while online.';
+  }
+  final t = at == null
+      ? ''
+      : ' · updated ${at.hour.toString().padLeft(2, '0')}:'
+            '${at.minute.toString().padLeft(2, '0')}';
+  return c.previewStale
+      ? 'Heatmap preview: offline, showing the last one$t'
+      : 'Heatmap preview$t';
+}
+
+/// Floor suggestions from the barometer, the auto-switch toggle, and what to
+/// do when the phone has no barometer.
+class _FloorPanel extends StatelessWidget {
+  const _FloorPanel({required this.c});
+
+  final SurveyController c;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = c.suggestion;
+    final note = switch (c.hasBarometer) {
+      true => 'Barometer on: floor changes are detected from air pressure.',
+      false => 'No barometer on this phone. Pick the floor by hand above.',
+      null => 'Checking for a barometer…',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        if (s != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+            decoration: glowCard(strength: 0.12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Looks like you are on ${s.label}.',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: c.dismissSuggestion,
+                  child: const Text('Ignore'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                  onPressed: c.acceptSuggestion,
+                  child: const Text('Switch'),
+                ),
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                note,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            if (c.hasBarometer == true) ...[
+              const Text('Auto-switch', style: TextStyle(fontSize: 13)),
+              Switch(value: c.autoSwitchFloors, onChanged: c.setAutoSwitch),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }
@@ -457,11 +556,14 @@ class _SyncLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final failing = c.syncError != null;
-    final text = failing
+    final base = failing
         ? 'Sync: ${c.pending} waiting · ${c.syncError}'
         : c.pending == 0
         ? 'Sync: all saved to the server'
         : 'Sync: ${c.pending} waiting';
+    final text = c.held == 0
+        ? base
+        : '$base · ${c.held} held for the next checkpoint (drift fix)';
     return Row(
       children: [
         Icon(

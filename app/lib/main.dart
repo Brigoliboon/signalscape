@@ -4,7 +4,7 @@ import 'data/api_client.dart';
 import 'data/session.dart';
 import 'data/token_store.dart';
 import 'screens/consent_screen.dart';
-import 'screens/pick_screen.dart';
+import 'screens/buildings_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'theme.dart';
 
@@ -50,7 +50,7 @@ class _SignalScapeAppState extends State<SignalScapeApp> {
             case SessionState.signedIn:
               return s.user!.needsConsent
                   ? ConsentScreen(session: s)
-                  : PickScreen(session: s);
+                  : BuildingsScreen(session: s);
           }
         },
       ),

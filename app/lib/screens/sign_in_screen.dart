@@ -4,6 +4,7 @@ import '../data/api_client.dart';
 import '../data/session.dart';
 import '../theme.dart';
 import '../widgets/radar.dart';
+import 'register_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.session});
@@ -135,6 +136,18 @@ class _SignInScreenState extends State<SignInScreen> {
                               child: CircularProgressIndicator(strokeWidth: 3),
                             )
                           : const Text('Sign in'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    RegisterScreen(session: widget.session),
+                              ),
+                            ),
+                      child: const Text('Create an account'),
                     ),
                   ],
                 ),

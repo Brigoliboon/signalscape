@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -9,15 +10,20 @@ import 'package:uuid/uuid.dart';
 import 'package:wifi_scan/wifi_scan.dart';
 
 import '../config.dart';
+import '../core/barometer.dart';
 import '../core/dead_reckoning.dart';
+import '../core/drift.dart';
 import '../core/geo.dart';
 import '../core/levels.dart';
+import '../core/preview.dart';
 import '../core/scan_throttle.dart';
 import '../core/sync_engine.dart';
+import '../data/active_survey.dart';
 import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/models.dart';
 import '../widgets/trail_view.dart';
+import 'finish.dart';
 
 enum SurveyPhase { acquiring, ready, active, paused, ending, endFailed, done }
 
@@ -42,7 +48,14 @@ class SurveyController extends ChangeNotifier {
     required this.building,
     required this.floors,
     required Floor initialFloor,
+    required this.userId,
+    this.resumeFrom,
   }) : floor = initialFloor;
+
+  final String userId;
+
+  /// Set when the app was closed mid-survey and the person chose to resume.
+  final ActiveSurvey? resumeFrom;
 
   final ApiClient api;
   final LocalDb db;
@@ -54,6 +67,13 @@ class SurveyController extends ChangeNotifier {
   static const _uuid = Uuid();
   static const _stepsBetweenScans = 2;
   static const _maxScanGap = Duration(seconds: 30);
+
+  /// How often the live preview heatmap is refreshed while online.
+  static const previewEvery = Duration(seconds: 60);
+
+  /// Readings wait for a checkpoint to be drift-corrected, but not longer
+  /// than this. After that they go up as they are.
+  static const maxHold = Duration(minutes: 4);
 
   // --- what the screen shows ---
   SurveyPhase phase = SurveyPhase.acquiring;
@@ -70,6 +90,25 @@ class SurveyController extends ChangeNotifier {
   int? latestRssi;
   double pulse = 0;
   final List<TrailPoint> trail = [];
+
+  // --- floors from the barometer (FR-9) ---
+  /// Null until known; false means no barometer, so floors are picked by hand.
+  bool? hasBarometer;
+
+  /// When true the floor switches by itself on a detected change; otherwise it
+  /// is only suggested. Either way a manual pick always wins.
+  bool autoSwitchFloors = false;
+
+  /// A floor the barometer thinks the person is on, waiting for a tap.
+  Floor? suggestion;
+
+  // --- drift correction (FR-10) ---
+  int held = 0;
+
+  // --- live preview heatmap (FR-11a) ---
+  PreviewGrid? preview;
+  DateTime? previewAt;
+  bool previewStale = false;
 
   final ScanThrottle throttle = ScanThrottle();
   final PositionTracker tracker = PositionTracker();
@@ -102,6 +141,13 @@ class SurveyController extends ChangeNotifier {
   int _syncFailures = 0;
   DateTime _nextSyncAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _disposed = false;
+  StreamSubscription<BarometerEvent>? _baroSub;
+  BarometerFloorTracker? _baro;
+  Timer? _baroCheck;
+  int _cpSteps = 0;
+  bool _previewBusy = false;
+  DateTime _nextPreviewAt = DateTime.fromMillisecondsSinceEpoch(0);
+  int _saveCounter = 0;
 
   void _changed() {
     if (!_disposed) notifyListeners();
@@ -147,8 +193,122 @@ class SurveyController extends ChangeNotifier {
       online = _netUp && _syncFailures == 0;
       _changed();
     });
+    _watchBarometer();
+    final r = resumeFrom;
+    if (r != null) await _resume(r);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _changed();
+  }
+
+  /// Picks up a survey the app lost when it was closed. It comes back paused,
+  /// at the last position it knew; a checkpoint with a good GPS fix puts it
+  /// right if the person moved in the meantime.
+  Future<void> _resume(ActiveSurvey r) async {
+    surveyId = r.surveyId;
+    _originLat = r.originLat;
+    _originLng = r.originLng;
+    tracker
+      ..x = r.x
+      ..y = r.y
+      ..steps = r.steps;
+    _cpSteps = r.steps;
+    readings = await db.readingCount(r.surveyId);
+    checkpoints = r.checkpoints;
+    // Readings held before the app closed can no longer be corrected.
+    await db.releaseHeld(r.surveyId);
+    await _startSensors();
+    phase = SurveyPhase.paused;
+    message =
+        'Survey resumed. Stand where you are on the map, add a checkpoint '
+        'to re-sync your position, then press Resume.';
+    unawaited(_tryStatus('paused'));
+  }
+
+  // --- barometer ---
+
+  void _watchBarometer() {
+    try {
+      _baroSub = barometerEventStream(
+        samplingPeriod: const Duration(milliseconds: 250),
+      ).listen(_onBaro, onError: (Object _) => _noBarometer());
+    } catch (_) {
+      _noBarometer();
+      return;
+    }
+    // A phone without a barometer never sends an event.
+    _baroCheck = Timer(const Duration(seconds: 4), () {
+      if (hasBarometer == null) _noBarometer();
+    });
+  }
+
+  void _noBarometer() {
+    if (hasBarometer == true) return;
+    hasBarometer = false;
+    _changed();
+  }
+
+  FloorStack get _stack => FloorStack(
+    levels: [for (final f in floors) f.level],
+    heights: {for (final f in floors) f.level: f.heightM},
+  );
+
+  void _onBaro(BarometerEvent e) {
+    if (hasBarometer != true) {
+      hasBarometer = true;
+      _changed();
+    }
+    final baro = _baro;
+    if (baro == null || !(collecting || phase == SurveyPhase.paused)) return;
+    final level = baro.feed(DateTime.now().millisecondsSinceEpoch, e.pressure);
+    if (level == null) return;
+    onFloorDetected(level);
+  }
+
+  /// Called when the barometer settles on a different floor [level].
+  @visibleForTesting
+  void onFloorDetected(int level) {
+    final detected = floors.where((f) => f.level == level);
+    if (detected.isEmpty) return;
+    final f = detected.first;
+    if (f.id == floor.id) {
+      suggestion = null;
+    } else if (autoSwitchFloors) {
+      _applyFloor(f);
+      message = 'Switched to ${f.label} (barometer).';
+    } else {
+      suggestion = f;
+      message = 'Looks like you are on ${f.label}. Tap Switch to confirm.';
+    }
+    _changed();
+  }
+
+  void setAutoSwitch(bool value) {
+    autoSwitchFloors = value;
+    final s = suggestion;
+    if (value && s != null) {
+      _applyFloor(s);
+      message = 'Switched to ${s.label} (barometer).';
+    }
+    _changed();
+  }
+
+  void acceptSuggestion() {
+    final s = suggestion;
+    if (s == null) return;
+    _applyFloor(s);
+    _changed();
+  }
+
+  void dismissSuggestion() {
+    suggestion = null;
+    _changed();
+  }
+
+  void _applyFloor(Floor f) {
+    floor = f;
+    suggestion = null;
+    _nextPreviewAt = DateTime.now();
+    _saveActive();
   }
 
   // --- start, pause, resume ---
@@ -168,6 +328,7 @@ class SurveyController extends ChangeNotifier {
         originLng: f.lng,
         originAccuracyM: f.accuracyM,
         deviceModel: 'Android',
+        hasBarometer: hasBarometer == true,
       );
     } on ApiException catch (e) {
       error = e.message;
@@ -177,12 +338,46 @@ class SurveyController extends ChangeNotifier {
     error = null;
     _originLat = f.lat;
     _originLng = f.lng;
+    _cpSteps = 0;
     await _startSensors();
     phase = SurveyPhase.active;
+    await _saveActive();
     _changed();
   }
 
+  Future<void> _saveActive() async {
+    final id = surveyId;
+    if (id == null || phase == SurveyPhase.done) return;
+    try {
+      await db.saveActive(
+        ActiveSurvey(
+          surveyId: id,
+          userId: userId,
+          buildingId: building.id,
+          buildingName: building.name,
+          floorId: floor.id,
+          originLat: _originLat,
+          originLng: _originLng,
+          x: tracker.x,
+          y: tracker.y,
+          steps: tracker.steps,
+          checkpointSteps: _cpSteps,
+          startedMs:
+              resumeFrom?.startedMs ?? DateTime.now().millisecondsSinceEpoch,
+          readings: readings,
+          checkpoints: checkpoints,
+        ),
+      );
+    } catch (_) {
+      // Only the resume note is lost; the readings themselves are safe.
+    }
+  }
+
   Future<void> _startSensors() async {
+    // Calibrates on the floor the survey starts (or resumes) on.
+    if (hasBarometer != false && _baro == null) {
+      _baro = BarometerFloorTracker(stack: _stack)..calibrate(floor.level);
+    }
     _accelSub = accelerometerEventStream(
       samplingPeriod: SensorInterval.gameInterval,
     ).listen(_onAccel);
@@ -245,8 +440,13 @@ class SurveyController extends ChangeNotifier {
     }
   }
 
+  /// A manual pick. It wins over the barometer, which re-bases on this floor.
   void setFloor(Floor f) {
     floor = f;
+    suggestion = null;
+    _baro?.confirm(f.level);
+    _nextPreviewAt = DateTime.now();
+    _saveActive();
     _changed();
   }
 
@@ -291,17 +491,24 @@ class SurveyController extends ChangeNotifier {
       final bssid = ap.bssid.toLowerCase();
       if (_lastSeen[bssid] == key) continue;
       _lastSeen[bssid] = key;
-      await db.add(SyncKind.readings, id, {
-        'client_id': _uuid.v4(),
-        'floor_id': floor.id,
-        'lat': geo.lat,
-        'lng': geo.lng,
-        'bssid': bssid,
-        'ssid': ap.ssid,
-        'rssi_dbm': ap.level,
-        'frequency_mhz': ap.frequency,
-        'scanned_at': now.toIso8601String(),
-      });
+      await db.add(
+        SyncKind.readings,
+        id,
+        {
+          'client_id': _uuid.v4(),
+          'floor_id': floor.id,
+          'lat': geo.lat,
+          'lng': geo.lng,
+          'bssid': bssid,
+          'ssid': ap.ssid,
+          'rssi_dbm': ap.level,
+          'frequency_mhz': ap.frequency,
+          'scanned_at': now.toIso8601String(),
+        },
+        x: tracker.x,
+        y: tracker.y,
+        progress: steps.toDouble(),
+      );
       readings++;
       if (strongest == null || ap.level > strongest) strongest = ap.level;
     }
@@ -309,7 +516,12 @@ class SurveyController extends ChangeNotifier {
       latestRssi = strongest;
       pulse = 1;
       trail.add(
-        TrailPoint(tracker.x, tracker.y, levelFor(strongest, thresholds)),
+        TrailPoint(
+          tracker.x,
+          tracker.y,
+          levelFor(strongest, thresholds),
+          steps.toDouble(),
+        ),
       );
       if (trail.length > 3000) trail.removeAt(0);
       message = null;
@@ -321,7 +533,9 @@ class SurveyController extends ChangeNotifier {
   // --- checkpoint ---
 
   /// Marks "I am here". With a good GPS fix it also re-anchors the dead
-  /// reckoned position to the fix, which removes the drift built up so far.
+  /// reckoned position to the fix, and the error found is spread back over
+  /// the readings taken since the last checkpoint, before they are uploaded
+  /// (FR-10). Without a good fix the checkpoint is only a marker.
   Future<void> checkpoint() async {
     final id = surveyId;
     if (id == null || !(collecting || phase == SurveyPhase.paused)) return;
@@ -346,14 +560,52 @@ class SurveyController extends ChangeNotifier {
     checkpoints++;
     if (good) {
       final local = toLocal(f.lat, f.lng, _originLat, _originLng);
+      final errX = local.x - tracker.x;
+      final errY = local.y - tracker.y;
+      final end = steps.toDouble();
+      final fixed = await db.applyCorrection(
+        id,
+        errX: errX,
+        errY: errY,
+        startProgress: _cpSteps.toDouble(),
+        endProgress: end,
+        originLat: _originLat,
+        originLng: _originLng,
+      );
+      _correctTrail(errX, errY, end);
       tracker.reanchor(local.x, local.y);
+      _cpSteps = steps;
+      final off = math.sqrt(errX * errX + errY * errY);
       message =
-          'Checkpoint saved. GPS ±${f.accuracyM.round()} m: position corrected.';
+          'Checkpoint saved. GPS ±${f.accuracyM.round()} m. Position was '
+          '${off.toStringAsFixed(1)} m off; $fixed readings corrected.';
     } else {
-      message = 'Checkpoint saved. No good GPS fix, so position was kept.';
+      message =
+          'Checkpoint saved. No good GPS fix, so the position was kept and '
+          'no drift was corrected.';
     }
+    held = await db.heldCount(id);
+    await _saveActive();
     _changed();
     unawaited(_syncTick());
+  }
+
+  void _correctTrail(double errX, double errY, double end) {
+    final fixed = spreadDrift(
+      [for (final p in trail) DriftPoint(p.x, p.y, p.progress)],
+      errX,
+      errY,
+      startProgress: _cpSteps.toDouble(),
+      endProgress: end,
+    );
+    for (var i = 0; i < trail.length; i++) {
+      trail[i] = TrailPoint(
+        fixed[i].x,
+        fixed[i].y,
+        trail[i].level,
+        trail[i].progress,
+      );
+    }
   }
 
   // --- background work ---
@@ -362,13 +614,67 @@ class SurveyController extends ChangeNotifier {
     if (pulse > 0) pulse = (pulse - 0.12).clamp(0, 1);
     unawaited(_maybeScan());
     if (DateTime.now().second % 5 == 0) unawaited(_syncTick());
+    unawaited(previewTick());
+    if (++_saveCounter % 10 == 0) unawaited(_saveActive());
     _changed();
+  }
+
+  // --- live preview heatmap (FR-11a) ---
+
+  /// About once a minute, while online, asks the API to process what it has
+  /// for the current floor and keeps the strongest-signal grid to draw under
+  /// the trail. Nothing is saved on the server, and failures stay quiet: the
+  /// last grid stays on screen and is marked as old.
+  @visibleForTesting
+  Future<void> previewTick() async {
+    final id = surveyId;
+    if (id == null || _previewBusy || _disposed) return;
+    if (!(collecting || phase == SurveyPhase.paused)) return;
+    final now = DateTime.now();
+    if (now.isBefore(_nextPreviewAt)) return;
+    if (!_netUp) {
+      if (preview != null && !previewStale) {
+        previewStale = true;
+        _changed();
+      }
+      return;
+    }
+    _previewBusy = true;
+    _nextPreviewAt = now.add(previewEvery);
+    final floorId = floor.id;
+    try {
+      final json = await api.processPreview(id, floorId);
+      if (_disposed) return;
+      final grid = pickPreviewGrid(
+        json,
+        floorId,
+        originLat: _originLat,
+        originLng: _originLng,
+      );
+      // Keep showing the old grid if this answer has nothing in it yet.
+      if (grid != null && grid.filledCells > 0) preview = grid;
+      previewAt = DateTime.now();
+      previewStale = false;
+    } on ApiException {
+      previewStale = preview != null;
+    } catch (_) {
+      previewStale = preview != null;
+    } finally {
+      _previewBusy = false;
+      _changed();
+    }
   }
 
   Future<void> _syncTick() async {
     if (_syncing || _disposed) return;
     _syncing = true;
     try {
+      final id = surveyId;
+      if (id != null && phase != SurveyPhase.ending) {
+        // Readings that waited too long for a checkpoint go up as they are.
+        await db.releaseHeld(id, olderThan: maxHold);
+        held = await db.heldCount(id);
+      }
       pending = await db.pendingCount();
       if (pending == 0) {
         _syncFailures = 0;
@@ -411,9 +717,9 @@ class SurveyController extends ChangeNotifier {
     error = null;
     _changed();
     try {
-      await engine.flushAll();
-      await api.setSurveyStatus(id, 'completed');
-      await api.process(id);
+      // No more checkpoints are coming, so held readings are released.
+      held = 0;
+      await finishSurvey(api: api, db: db, engine: engine, surveyId: id);
       phase = SurveyPhase.done;
       _changed();
       return true;
@@ -429,8 +735,11 @@ class SurveyController extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_saveActive());
     _disposed = true;
     _timer?.cancel();
+    _baroCheck?.cancel();
+    _baroSub?.cancel();
     _gpsSub?.cancel();
     _accelSub?.cancel();
     _magSub?.cancel();
