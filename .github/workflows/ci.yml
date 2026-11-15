@@ -182,6 +182,7 @@ jobs:
         if: steps.app.outputs.present == 'true'
         with:
           channel: stable
+          flutter-version: 3.41.6
           cache: true
       - name: Fetch packages
         if: steps.app.outputs.present == 'true'
