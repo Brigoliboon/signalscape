@@ -15,8 +15,9 @@ const int syncBatchSize = 500;
 /// is empty the map falls back to OpenStreetMap tiles.
 const String mapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
 
-/// Mapbox style used for the 2D map; a dark one to match the app.
-const String mapboxStyle = 'dark-v11';
+/// Mapbox style used for the 2D map: satellite imagery with street and
+/// building labels on top.
+const String mapboxStyle = 'satellite-streets-v12';
 
 /// Sent to OpenStreetMap's tile server, which asks apps to identify themselves.
 const String mapUserAgentPackage = 'com.example.signalscape_mobile';

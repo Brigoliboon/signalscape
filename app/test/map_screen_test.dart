@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:signalscape_mobile/core/map_tiles.dart';
+import 'package:signalscape_mobile/data/api_client.dart';
 import 'package:signalscape_mobile/screens/map_screen.dart';
 import 'package:signalscape_mobile/theme.dart';
 
@@ -36,6 +37,42 @@ Routes goodRoutes() => {
     ]),
   ),
   'GET /api/surveys/s1/trail': () => jsonResponse(trailJson()),
+  'GET /api/surveys/s1/networks': () => jsonResponse({
+    'items': [
+      {
+        'ssid': 'Lab',
+        'bssid': 'aa:bb:cc:dd:ee:01',
+        'reading_count': 40,
+        'max_rssi_dbm': -48,
+      },
+      {
+        'ssid': '',
+        'bssid': 'aa:bb:cc:dd:ee:02',
+        'reading_count': 12,
+        'max_rssi_dbm': -70,
+      },
+      // The same BSSID under another SSID is listed once.
+      {
+        'ssid': 'Lab-guest',
+        'bssid': 'aa:bb:cc:dd:ee:01',
+        'reading_count': 3,
+        'max_rssi_dbm': -50,
+      },
+    ],
+    'total': 3,
+    'page': 1,
+    'page_size': 100,
+  }),
+  // One network: two cells and its access point on the ground floor only.
+  'GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:01': () => jsonResponse(
+    collection([
+      cell(121.0, 14.6, -55, 0, level: 'good'),
+      ap(121.0001, 14.6001, 0),
+    ]),
+  ),
+  // Another network: nothing on any floor.
+  'GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:02': () =>
+      jsonResponse(collection([])),
 };
 
 Future<List<String>> pump(
@@ -46,7 +83,9 @@ Future<List<String>> pump(
 }) async {
   final calls = <String>[];
   final api = apiFor((req) async {
-    final key = '${req.method} ${req.url.path}';
+    final bssid = req.url.queryParameters['bssid'];
+    final key =
+        '${req.method} ${req.url.path}${bssid == null ? '' : '?bssid=$bssid'}';
     calls.add(key);
     final r = routes[key];
     return r == null ? http.Response('{"detail":"Not found"}', 404) : r();
@@ -69,6 +108,24 @@ Future<List<String>> pump(
   );
   await tester.pumpAndSettle();
   return calls;
+}
+
+Future<void> pumpWith(WidgetTester tester, ApiClient api) async {
+  tester.view.physicalSize = const Size(800, 1400);
+  tester.view.devicePixelRatio = 2;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildTheme(),
+      home: MapScreen(
+        api: api,
+        surveyId: 's1',
+        tiles: MapTiles.forToken(''),
+        tileProvider: NoTiles(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -151,6 +208,122 @@ void main() {
     await pump(tester, routes);
     expect(find.byType(ChoiceChip), findsNothing);
     expect(find.text('Level 0'), findsOneWidget);
+  });
+
+  group('network picker', () {
+    Future<void> choose(WidgetTester tester, String text) async {
+      await tester.tap(find.byKey(const ValueKey('network-picker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining(text).last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists All networks and each BSSID once, with counts', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      expect(find.text('All networks (strongest signal)'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('network-picker')));
+      await tester.pumpAndSettle();
+      expect(find.text('Lab · aa:bb:cc:dd:ee:01 (40)'), findsOneWidget);
+      expect(
+        find.text('(hidden network) · aa:bb:cc:dd:ee:02 (12)'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Lab-guest'), findsNothing);
+    });
+
+    testWidgets('choosing a network loads only that network\'s layers', (
+      tester,
+    ) async {
+      final calls = await pump(tester, goodRoutes());
+      expect(
+        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
+        hasLength(2),
+      );
+      await choose(tester, 'Lab · aa:bb');
+      expect(
+        calls,
+        contains('GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:01'),
+      );
+      expect(
+        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
+        hasLength(1),
+      );
+      // The walk, the floors and the access point stay.
+      expect(find.byKey(const ValueKey('pin-S')), findsOneWidget);
+      expect(find.text('Ground'), findsOneWidget);
+      expect(find.text('First'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')),
+        findsOneWidget,
+      );
+      // The trail was not loaded again.
+      expect(calls.where((c) => c.endsWith('/trail')), hasLength(1));
+    });
+
+    testWidgets('going back to all networks restores the strongest signal', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      await choose(tester, 'Lab · aa:bb');
+      await choose(tester, 'All networks');
+      expect(
+        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
+        hasLength(2),
+      );
+    });
+
+    testWidgets('a network with nothing on the floor says so', (tester) async {
+      await pump(tester, goodRoutes());
+      await choose(tester, 'aa:bb:cc:dd:ee:02');
+      expect(find.byType(PolygonLayer), findsNothing);
+      expect(
+        find.text('No readings of this network on this floor.'),
+        findsOneWidget,
+      );
+      // The floors and the walk are still there.
+      expect(find.byType(FlutterMap), findsOneWidget);
+      expect(find.text('First'), findsOneWidget);
+      expect(find.byKey(const ValueKey('pin-S')), findsOneWidget);
+    });
+
+    testWidgets('a failed load keeps the network and says why', (tester) async {
+      final routes = goodRoutes();
+      routes['GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:01'] = () =>
+          jsonResponse({'detail': 'Boom'}, 500);
+      await pump(tester, routes);
+      await choose(tester, 'Lab · aa:bb');
+      expect(find.textContaining('Boom'), findsOneWidget);
+      expect(find.text('All networks (strongest signal)'), findsOneWidget);
+      expect(
+        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
+        hasLength(2),
+      );
+    });
+
+    testWidgets('offline keeps the network and says so', (tester) async {
+      var offline = false;
+      final api = apiFor((req) async {
+        if (offline && req.url.queryParameters.containsKey('bssid')) {
+          throw http.ClientException('down');
+        }
+        final r = goodRoutes()['${req.method} ${req.url.path}'];
+        return r == null ? http.Response('{}', 404) : r();
+      });
+      await pumpWith(tester, api);
+      offline = true;
+      await choose(tester, 'Lab · aa:bb');
+      expect(find.textContaining('offline'), findsOneWidget);
+    });
+
+    testWidgets('without the network list the map still works', (tester) async {
+      final routes = goodRoutes();
+      routes.remove('GET /api/surveys/s1/networks');
+      await pump(tester, routes);
+      expect(find.byType(FlutterMap), findsOneWidget);
+      expect(find.text('All networks (strongest signal)'), findsOneWidget);
+    });
   });
 
   testWidgets('the 3D switch is offered when given', (tester) async {

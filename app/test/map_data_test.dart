@@ -355,4 +355,40 @@ void main() {
       expect(const FloorLayer(level: 5, label: 'x').isEmpty, isTrue);
     });
   });
+
+  group('networks and floors', () {
+    test('networks are listed once per BSSID, in order', () {
+      final nets = parseNetworks([
+        {'ssid': 'Lab', 'bssid': 'a1', 'reading_count': 9},
+        {'ssid': '', 'bssid': 'a2', 'reading_count': 4},
+        {'ssid': 'Other', 'bssid': 'a1', 'reading_count': 2},
+        {'ssid': 'x'},
+        {'bssid': 'a3', 'ssid': 5},
+      ]);
+      expect(nets.map((n) => n.bssid), ['a1', 'a2', 'a3']);
+      expect(nets[0].label, 'Lab · a1');
+      expect(nets[0].readingCount, 9);
+      expect(nets[1].name, '(hidden network)');
+      expect(nets[2].ssid, '');
+      expect(nets[2].readingCount, 0);
+    });
+
+    test('floors of the summary stay when a network has nothing on them', () {
+      final data = SurveyMapData.parse(
+        geojson: collection([cell(121.0, 14.6, -50, 0, level: 'good')]),
+        summary: summary(),
+      );
+      expect(data.floors.map((f) => f.level), [1, 0]);
+      expect(data.floorAt(1)!.isEmpty, isTrue);
+      expect(data.isEmpty, isFalse);
+      // ... but nothing anywhere is still empty.
+      expect(
+        SurveyMapData.parse(
+          geojson: collection([]),
+          summary: summary(),
+        ).isEmpty,
+        isTrue,
+      );
+    });
+  });
 }

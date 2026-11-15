@@ -2,9 +2,11 @@ import '../config.dart';
 
 /// Where the 2D map gets its tiles and what it has to credit (FR-16a).
 ///
-/// With a Mapbox token the map uses Mapbox's raster style tiles (512 px tiles,
-/// so the zoom is offset by one). Without one it falls back to the public
-/// OpenStreetMap tile server.
+/// With a Mapbox token the map shows satellite imagery with labels from
+/// Mapbox's raster style tiles (512 px tiles, so the zoom is offset by one).
+/// Without one it falls back to the public OpenStreetMap street map. Esri's
+/// World Imagery is not used as a free satellite fallback: its public tile
+/// endpoint needs an ArcGIS licence and is not for general app use.
 class MapTiles {
   const MapTiles({
     required this.urlTemplate,
