@@ -7,6 +7,7 @@ from app.api.health import router as health_router
 from app.api.results import router as results_router
 from app.api.surveys import router as surveys_router
 from app.api.users import router as users_router
+from app.api.viewer import VIEWER_PATH, viewer_app
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -26,3 +27,4 @@ app.include_router(buildings_router)
 app.include_router(floors_router)
 app.include_router(surveys_router)
 app.include_router(results_router)
+app.mount(VIEWER_PATH, viewer_app(), name="viewer")

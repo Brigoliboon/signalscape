@@ -57,6 +57,7 @@ class FloorSummary(BaseModel):
     floor_id: uuid.UUID
     floor_level: int
     floor_label: str
+    floor_height_m: float
     raw_reading_count: int
     cleaned_reading_count: int
     area_covered_m2: float

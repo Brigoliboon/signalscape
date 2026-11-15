@@ -378,6 +378,7 @@ def test_summary(scene: Scene) -> None:
     assert [f["floor_level"] for f in floors] == [0, 1]
     ground = floors[0]
     assert ground["floor_label"] == "L0"
+    assert ground["floor_height_m"] == 3.0
     assert ground["raw_reading_count"] == 8
     assert ground["cleaned_reading_count"] == 8
     assert ground["area_covered_m2"] == 7.0
