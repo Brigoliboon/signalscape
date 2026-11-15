@@ -54,6 +54,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Checkpoints to correct drift (FR-10)
 - [ ] Offline storage and upload to the API (FR-11)
 - [ ] Survey readings upload endpoint (FR-12)
+- [ ] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a)
 
 ## M5, Week 5: Processing (feature-complete part 1)
 - [ ] Coverage grid per floor and per network by interpolation (FR-13)
@@ -67,6 +68,8 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Filter by network and floor (FR-17)
 - [ ] Dead zones and estimated access points marked (FR-18)
 - [ ] Survey summary and CSV export (FR-19, FR-21)
+- [ ] 2D map view from GeoJSON, one layer per floor (FR-16a)
+- [ ] GeoJSON export of coverage, access points and readings (FR-21)
 - [ ] Survey history, profile and settings, delete account (FR-20)
 - [ ] Admin user management screen
 - [ ] All 8+ screens done (C-3)
@@ -90,6 +93,8 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-15 20:03: [PR #8](https://github.com/Brigoliboon/signalscape/pull/8) open: `REQUIREMENTS.md` updated with the week 2 decisions (GPS fix plus dead reckoning, data cleaning, IDW and weighted centroid, offline sync, live visuals FR-11a, 2D GeoJSON map FR-16a, 3D view in a WebView, Viewers through shares, optional floor size), privacy section for location data, and a change log in section 14. Records FastAPI as the API framework; Flutter package choices still open. Added FR-11a to M4 and FR-16a and GeoJSON export to M6 here.
+- 2026-11-15 20:03: [PR #7](https://github.com/Brigoliboon/signalscape/pull/7) open: buildings and floors CRUD (migration 0003) with pagination, sorting and search; floor plan upload (PNG or JPEG, up to 5 MB) in a new `uploads_data` volume; Admin full access, Surveyor own buildings only, Viewer none; plan files removed on delete. 124 tests, 100% coverage. Tick FR-4, FR-5 and FR-3a/FR-3b once merged.
 - 2026-11-15 19:42: M3 auth merged ([PR #5](https://github.com/Brigoliboon/signalscape/pull/5)). Users table (migration 0002), bcrypt password hashing, JWT sign-in, Admin, Surveyor and Viewer roles, register, login, profile and consent endpoints, admin user management, and a CLI to create the first admin. Shared pagination and sorting helper for list endpoints. 53 tests, 100% backend coverage. CI and CD green; deployed. Next: buildings and floors CRUD (FR-4, FR-5).
 - 2026-11-15 19:37: Week 2 design merged ([PR #4](https://github.com/Brigoliboon/signalscape/pull/4), `docs/DESIGN.md`). Database schema, access control, REST API with paging, filtering and sorting, processing math (cleaning, IDW interpolation, access point estimates), offline-first client sync, and GeoJSON output per floor. Still open for week 2: wireframes, RA 10173 privacy plan, package choices.
 - 2026-11-15 18:28: CI path filters merged ([PR #3](https://github.com/Brigoliboon/signalscape/pull/3)), so API and app jobs run only when their files change.
