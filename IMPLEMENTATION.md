@@ -6,7 +6,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
 - `app/`: Flutter Android app.
 
-**Status:** M3 in progress (Nov 15, 2026). Week dates are set once week 1's start is confirmed.
+**Status (Nov 16, 2026):** M3 and M5 are done. M6's backend is mostly done (3D view page, filters, markers, GeoJSON export); its summary, 2D map, history and admin screens are open. M4 app work is in progress: the first app POC (sign in, survey capture, sync, 3D view in a WebView) is in review, and it still needs a test on a real phone. Week dates are set once week 1's start is confirmed.
 
 ---
 
@@ -21,11 +21,11 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ## M2, Week 2: Design
 - [x] Database schema (users, roles, buildings, floors, survey sessions, readings, checkpoints, access points, coverage grids)
 - [x] OpenAPI spec draft (endpoints for auth, buildings, floors, surveys, readings, maps, admin)
-- [ ] Wireframes for the 8+ screens
+- [x] Wireframes for the 8+ screens
 - [x] Interpolation and access point estimation methods chosen
 - [ ] RA 10173 privacy notice and data handling plan
 - [x] API framework chosen (FastAPI)
-- [ ] Flutter packages chosen
+- [x] Flutter packages chosen (pinned in `app/pubspec.yaml`: `flutter_secure_storage`, `wifi_scan`, `sensors_plus`, `geolocator`, `permission_handler`, `sqflite`, `connectivity_plus`, `webview_flutter`, `http`, `uuid`, `path`)
 
 ## M3, Week 3: API foundation and deployment (MVP part 1)
 - [x] API project set up in `api/`
@@ -94,6 +94,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-16 01:30: App POC open as a PR (branch `feat/app-poc`). Sign in (token in secure storage, base URL from `--dart-define=API_BASE_URL`), a minimal privacy consent screen for Surveyors (Admins are not asked by the API), a building and floor pick with quick create, then survey capture: GPS start fix of 10 m or better, Wi-Fi scans kept within Android's 4 scans per 2 minutes, steps and compass heading for dead reckoning, a checkpoint that re-anchors to a good GPS fix, pause, end, sqflite queue with batched retrying sync (5 s, 10 s, 30 s, 2 min), a live trail colored good/fair/dead, and the 3D page in a WebView after processing. Dark "signal scanner" theme in `app/lib/theme.dart`. Unit tests for the step, heading and position math, scan throttle, sync queue, signal levels, API client and sign in (55 tests). Ticked: wireframes (M2) and Flutter packages (M2). Left unticked on purpose until tried on a real phone: Wi-Fi scanning (FR-7), step detection and heading (FR-8), checkpoints (FR-10), offline storage and upload (FR-11) and the live trail (FR-11a; the 60 s preview heatmap is not built). Also still open: register screen, building screens, barometer floor detection (FR-9, the floor is picked by hand).
 - 2026-11-16 00:45: 3D coverage page open as a PR (branch `feat/3d-view`). Static Three.js page at `/api/viewer/`, served by the API, for the app's WebView. Stacked floors with a good/fair/dead heatmap using the surveyor's thresholds, a legend with text labels, estimated access point markers, highlighted dead zones (FR-18), floor toggles and a network filter (FR-17), tap to inspect, one-finger orbit and two-finger zoom on a 360×800 phone. JWT goes in the URL fragment and is kept in memory only; the page is public and holds no data. Three.js r0.187.0 vendored, no build step. `/summary` now returns `floor_height_m` per floor. Ticked FR-16 (page), FR-17 and FR-18. Still open: opening the page from the Flutter app in a WebView, and the 2D map (FR-16a).
 - 2026-11-16 00:35: [PR #11](https://github.com/Brigoliboon/signalscape/pull/11) open: survey processing (migration 0005, numpy). Cleaning (range check, median merge of repeat scans, MAD outliers), IDW coverage on a 1 m grid with a 10 m radius per floor and per network, weighted-centroid access point estimates, signal levels from the surveyor's thresholds. `POST /surveys/{id}/process` (full run on a completed survey, or `preview=true` for the live heatmap), plus `coverage`, `access-points`, `summary`, `networks`, `geojson` (floors as layers) and `export.csv`. 273 tests, 100% coverage. Ticked FR-13 to FR-15, the map endpoints, the math tests and the GeoJSON export. Still open on the app side: FR-11a live heatmap, FR-16 and FR-16a views, FR-18 markers and FR-19 summary screen (their API is done), and the CSV export button.
 - 2026-11-15 20:30: [PR #10](https://github.com/Brigoliboon/signalscape/pull/10) open: surveys API (migration 0004). Start, pause, resume and complete a survey (GPS start fix of 10 m or better, consent required for Surveyors), batch upload of readings and checkpoints that skips repeated `client_id`s (FR-12), and survey shares so Viewers see only shared surveys. Admin sees all, Surveyor own. 201 tests, 100% coverage. Ticked the readings upload endpoint (FR-12); the app side of checkpoints, offline sync and live visuals stays open.
