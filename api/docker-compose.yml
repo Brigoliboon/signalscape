@@ -1,0 +1,63 @@
+name: signalscape
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-signalscape}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-signalscape}
+      POSTGRES_DB: ${POSTGRES_DB:-signalscape}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-signalscape} -d ${POSTGRES_DB:-signalscape}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    image: ${API_IMAGE:-signalscape-api:local}
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-signalscape}:${POSTGRES_PASSWORD:-signalscape}@db:5432/${POSTGRES_DB:-signalscape}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

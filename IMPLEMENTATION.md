@@ -6,7 +6,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
 - `signalscape_mobile/`: Flutter Android app.
 
-**Status:** Planning (Nov 15, 2026). Week dates are set once week 1's start is confirmed.
+**Status:** M3 in progress (Nov 15, 2026). Week dates are set once week 1's start is confirmed.
 
 ---
 
@@ -27,20 +27,20 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] API framework and Flutter packages chosen
 
 ## M3, Week 3: API foundation and deployment (MVP part 1)
-- [ ] API project set up in `api/`
-- [ ] PostgreSQL with migrations
+- [x] API project set up in `api/`
+- [x] PostgreSQL with migrations
 - [ ] Register and sign-in with JWT (FR-1)
 - [ ] Roles and access control: Admin, Surveyor (FR-2, FR-3)
 - [ ] Buildings and floors CRUD (FR-4, FR-5)
 - [ ] bcrypt, input validation, pagination, filtering and sorting on list endpoints (FR-3a, FR-3b)
-- [ ] `/api/health` (FR-3c)
-- [ ] OpenAPI docs served at `/api/docs` (C-10)
-- [ ] Docker Compose: API, PostgreSQL, Caddy (C-5, C-6)
+- [x] `/api/health` (FR-3c)
+- [x] OpenAPI docs served at `/api/docs` (C-10)
+- [x] Docker Compose: API, PostgreSQL, Caddy (C-5, C-6)
 - [ ] Public HTTPS domain (C-8)
-- [ ] CI for the API: lint, unit tests, integration tests with a PostgreSQL container, OpenAPI check, Docker build, dependency scan (CI-1 to CI-6)
+- [x] CI for the API: lint, unit tests, integration tests with a PostgreSQL container, OpenAPI check, Docker build, dependency scan (CI-1 to CI-6)
 - [ ] Self-hosted GitHub Actions runner installed on the server
-- [ ] CD: build the image, deploy with Docker Compose on the runner, run migrations, post-deploy smoke test (CD-1 to CD-4)
-- [ ] CI fails below 60% backend line coverage (CI-2)
+- [ ] CD: build the image, deploy with Docker Compose on the runner, run migrations, post-deploy smoke test (CD-1 to CD-4). Workflow written; tick after the first green deploy.
+- [x] CI fails below 60% backend line coverage (CI-2)
 - [ ] Branch protection on `main` with required checks (CD-5)
 
 ## M4, Week 4: Survey capture in the app (MVP part 2, MVP due end of week 4)
@@ -90,4 +90,6 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-15: M3 CI/CD. GitHub Actions CI on every push and PR: ruff lint/format (CI-1), pytest against a Postgres container with a 60% coverage fail gate (CI-2, CI-3), OpenAPI/`/api/docs` check (CI-4), Docker image build (CI-5), pip-audit and gitleaks (CI-6). CD after CI succeeds on a push to `main`: push the API image to GHCR (CD-1), self-hosted runner pulls it, restarts Docker Compose, runs migrations, smoke tests `/api/health` and `/api/docs` (CD-2, CD-3). Secrets stay in GitHub Actions (CD-4). Flutter CI (CI-7 to CI-9) runs on `app/`. Self-hosted runner `signalscape-vm` is online on the VM with Docker installed; `POSTGRES_PASSWORD` and `JWT_SECRET` secrets set. Caddy binds to 127.0.0.1:8080 behind a Cloudflare Tunnel (no ACME). Still open: tunnel token and `API_BASE_URL`, first green deploy, branch protection (CD-5), public HTTPS domain (C-8).
+- 2026-11-15: M3 API foundation. FastAPI project in `api/` with Alembic, `/api/health` (FR-3c), OpenAPI at `/api/docs` (C-10), and Docker Compose for the API, PostgreSQL, and Caddy (C-5, C-6). Auth, roles, and buildings CRUD are not started.
 - 2026-11-15: Project picked. REQUIREMENTS.md and IMPLEMENTATION.md drafted. CI/CD pipeline requirements added. Updated against Sage's full course guidelines (user group, self-hosted runner, 60% coverage, /api/health, v1.0 tag).
