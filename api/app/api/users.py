@@ -1,10 +1,11 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import get_uploads_dir, require_admin
 from app.api.pagination import (
     Page,
     PageParams,
@@ -15,6 +16,7 @@ from app.api.pagination import (
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import UserAdminUpdate, UserRead
+from app.services.buildings import delete_plan_files, plan_files_for_owner
 from app.services.users import ensure_not_last_admin
 
 router = APIRouter(
@@ -87,9 +89,15 @@ def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+def delete_user(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    uploads_dir: Path = Depends(get_uploads_dir),
+) -> Response:
     user = _get_or_404(db, user_id)
     ensure_not_last_admin(db, user, "delete")
+    plan_files = plan_files_for_owner(db, user.id)
     db.delete(user)
     db.commit()
+    delete_plan_files(uploads_dir, plan_files)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

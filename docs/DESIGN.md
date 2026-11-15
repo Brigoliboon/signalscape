@@ -61,7 +61,7 @@ erDiagram
 | building_id | uuid FK buildings, cascade | |
 | level | smallint | 0 = ground, negative = basement; unique per building |
 | label | text | e.g. "2F" |
-| width_m, length_m | numeric(6,2) | approximate size (FR-5) |
+| width_m, length_m | numeric(6,2), null | optional approximate size (FR-5), used only to size the 3D floor plane |
 | height_m | numeric(4,2) | default 3.0; used to stack floors in 3D |
 | plan_image_path | text, null | uploaded floor plan, stored in a Docker volume |
 | created_at, updated_at | timestamptz | |
@@ -261,7 +261,7 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 ## 7. Open decisions
 
 1. **IDW vs kriging:** this draft uses IDW for the API and leaves kriging as a comparison for the paper.
-2. **Floor dimensions:** `floors.width_m` and `length_m` become optional, used only to size the 3D floor plane; the grid extent comes from the readings.
+2. **Floor dimensions (decided):** `floors.width_m` and `length_m` are optional, used only to size the 3D floor plane; the grid extent comes from the readings.
 3. **3D view location:** a Three.js page served by the API and opened in a WebView keeps one implementation. The data comes from `/coverage` and `/access-points` either way.
 4. **Refresh tokens:** left out for now (24-hour access tokens). Can be added if the app needs longer sessions.
 5. **Viewer role:** included through `survey_shares`; can be dropped if two roles are enough.

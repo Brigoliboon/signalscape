@@ -31,8 +31,8 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [x] PostgreSQL with migrations
 - [x] Register and sign-in with JWT (FR-1)
 - [x] Roles and access control: Admin, Surveyor (FR-2, FR-3)
-- [ ] Buildings and floors CRUD (FR-4, FR-5)
-- [ ] bcrypt, input validation, pagination, filtering and sorting on list endpoints (FR-3a, FR-3b)
+- [x] Buildings and floors CRUD (FR-4, FR-5)
+- [x] bcrypt, input validation, pagination, filtering and sorting on list endpoints (FR-3a, FR-3b)
 - [x] `/api/health` (FR-3c)
 - [x] OpenAPI docs served at `/api/docs` (C-10)
 - [x] Docker Compose: API, PostgreSQL, Caddy (C-5, C-6)

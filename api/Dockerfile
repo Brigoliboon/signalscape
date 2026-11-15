@@ -11,7 +11,8 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini .
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh && chown -R appuser:appuser /app
+RUN chmod +x entrypoint.sh && mkdir -p /data/uploads \
+    && chown -R appuser:appuser /app /data
 
 USER appuser
 EXPOSE 8000
