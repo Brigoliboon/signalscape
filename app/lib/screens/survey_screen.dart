@@ -390,7 +390,8 @@ class _TrailCard extends StatelessWidget {
         children: [
           Positioned.fill(
             child: TrailView(
-              points: c.trail,
+              points: c.trailHere,
+              path: c.pathHere,
               x: c.tracker.x,
               y: c.tracker.y,
               heading: c.heading,

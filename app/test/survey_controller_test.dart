@@ -113,6 +113,53 @@ void main() {
     });
   });
 
+  group('walk path', () {
+    test('a floor change starts the path on the new floor', () {
+      c.tracker
+        ..x = 3
+        ..y = 4
+        ..steps = 6;
+      c.setFloor(f1);
+      expect(c.path.single.floorId, 'f1');
+      expect(c.path.single.x, 3);
+      expect(c.path.single.progress, 6);
+      c.onFloorDetected(0);
+      c.autoSwitchFloors = true;
+      c.onFloorDetected(0);
+      expect(c.floor, f0);
+      expect(c.path.map((p) => p.floorId), ['f1', 'f0']);
+    });
+
+    test('only the shown floor is drawn', () {
+      c.trail
+        ..add(const TrailPoint(0, 0, SignalLevel.good, 0, 'f0'))
+        ..add(const TrailPoint(1, 0, SignalLevel.good, 1, 'f1'));
+      c.path
+        ..add(const PathPoint(0, 0, 0, 'f0'))
+        ..add(const PathPoint(1, 0, 1, 'f1'))
+        ..add(const PathPoint(2, 0, 2, 'f0'));
+      expect(c.trailHere.single.floorId, 'f0');
+      expect(c.pathHere.map((p) => p.x), [0, 2]);
+    });
+
+    test('a good GPS fix bends the path too, ending on the fix', () async {
+      c.phase = SurveyPhase.active;
+      c.path
+        ..add(const PathPoint(0, 0, 0))
+        ..add(const PathPoint(5, 0, 5))
+        ..add(const PathPoint(10, 0, 10));
+      c.tracker
+        ..x = 10
+        ..steps = 10;
+      final g = toGeo(10, 2, 0, 0);
+      c.fix = GpsFix(g.lat, g.lng, 5, DateTime.now());
+      await c.checkpoint();
+      expect(c.path.first.y, closeTo(0, 1e-9));
+      expect(c.path[1].y, closeTo(1, 1e-9));
+      expect(c.path.last.y, closeTo(2, 1e-9));
+    });
+  });
+
   group('checkpoint drift correction (FR-10)', () {
     Future<void> hold(String id, double x, double y, double progress) => db.add(
       SyncKind.readings,

@@ -2,7 +2,7 @@
 //
 // Opened in the app's WebView at /api/viewer/#survey=<id>&token=<jwt>, or started
 // with window.signalscapeViewer.start({ surveyId, token }). It reads the finished
-// survey from the normal API (summary, coverage, access points, networks) with that
+// survey from the normal API (summary, coverage, access points, networks, trail) with that
 // bearer token and draws the floors stacked, each with its heatmap.
 //
 // All text from the API (SSIDs and so on) is written with textContent or drawn on a
@@ -16,6 +16,7 @@ import {
   cellAt,
   cellLevels,
   cellPixels,
+  dataExtent,
   floorElevation,
   formatDbm,
   isUuid,
@@ -29,6 +30,11 @@ import {
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
 const AP_COLOR = '#1d4ed8';
+const TRAIL_COLOR = '#7c3aed';
+const START_COLOR = '#16a34a';
+const END_COLOR = '#dc2626';
+// Just above the heatmap, which sits at 0.05.
+const TRAIL_Y = 0.25;
 const TAP_MOVE_PX = 8;
 
 const $ = (id) => document.getElementById(id);
@@ -42,6 +48,7 @@ const els = {
   network: $('network'),
   floorList: $('floor-list'),
   showAps: $('show-aps'),
+  showTrail: $('show-trail'),
   showDead: $('show-dead'),
 };
 
@@ -52,6 +59,7 @@ const state = {
   thresholds: null,
   floors: [], // top floor first
   accessPoints: [],
+  trail: null,
   bssid: '',
   generation: 0,
 };
@@ -239,48 +247,87 @@ function gridLayout(grid) {
 function worldUnit() {
   let extent = 20;
   for (const floor of state.floors) {
-    if (floor.layout) extent = Math.max(extent, floor.layout.width, floor.layout.depth);
+    const area = floorExtent(floor);
+    if (area) extent = Math.max(extent, area.width, area.depth);
   }
   return Math.min(3, Math.max(0.5, extent / 60));
 }
 
-/** Rebuild everything drawn for one floor: slab, heatmap, dead zones, markers. */
+/** The block of the floor that holds data, in metres: { west, south, width, depth }. */
+function floorExtent(floor) {
+  const { layout, baseGrid } = floor;
+  if (!layout) return null;
+  const block = baseGrid ? dataExtent(baseGrid.values, baseGrid.cols) : null;
+  if (!block) return layout;
+  const { cell } = layout;
+  return {
+    west: layout.west + block.col0 * cell,
+    south: layout.south + block.row0 * cell,
+    width: (block.col1 - block.col0 + 1) * cell,
+    depth: (block.row1 - block.row0 + 1) * cell,
+  };
+}
+
+/** A faint footprint of the cells that have data, instead of a solid rectangle. */
+function addFootprint(floor) {
+  const { layout, baseGrid } = floor;
+  const cells = [];
+  baseGrid.values.forEach((value, index) => {
+    if (value !== null && value !== undefined) cells.push(index);
+  });
+  if (cells.length === 0) return;
+  const geometry = new THREE.PlaneGeometry(layout.cell, layout.cell);
+  geometry.rotateX(-Math.PI / 2);
+  const mesh = new THREE.InstancedMesh(
+    geometry,
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+    cells.length,
+  );
+  const matrix = new THREE.Matrix4();
+  cells.forEach((index, i) => {
+    const col = index % baseGrid.cols;
+    const row = Math.floor(index / baseGrid.cols);
+    matrix.makeTranslation(
+      layout.west + (col + 0.5) * layout.cell,
+      0,
+      -(layout.south + (row + 0.5) * layout.cell),
+    );
+    mesh.setMatrixAt(i, matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  floor.group.add(mesh);
+  floor.slab = mesh;
+}
+
+/** Rebuild everything drawn for one floor: footprint, heatmap, dead zones, markers. */
 function buildFloor(floor) {
   disposeGroup(floor.group);
   floor.heat = null;
   floor.slab = null;
   floor.deadMesh = null;
   floor.apMeshes = [];
+  floor.trailMeshes = [];
   floor.group.position.y = floorElevation(floor.info.floor_level, floor.info.floor_height_m);
-  if (!floor.layout) return;
-
-  const { layout } = floor;
   const unit = worldUnit();
 
-  const slab = new THREE.Mesh(
-    new THREE.PlaneGeometry(layout.width, layout.depth),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
-  );
-  slab.rotation.x = -Math.PI / 2;
-  slab.position.set(layout.centerX, 0, layout.centerZ);
-  floor.group.add(slab);
-  floor.slab = slab;
-  const outline = new THREE.LineSegments(
-    new THREE.EdgesGeometry(slab.geometry),
-    new THREE.LineBasicMaterial({ color: 0x6b7280 }),
-  );
-  outline.rotation.copy(slab.rotation);
-  outline.position.copy(slab.position);
-  floor.group.add(outline);
+  const { layout } = floor;
+  if (layout) {
+    if (floor.baseGrid) addFootprint(floor);
+    const extent = floorExtent(floor);
+    const label = makeLabel(`${floor.info.floor_label} (level ${floor.info.floor_level})`);
+    const labelHeight = unit * 3;
+    label.scale.set(labelHeight * label.userData.aspect, labelHeight, 1);
+    label.position.set(
+      extent.west + (labelHeight * label.userData.aspect) / 2,
+      unit * 1.5,
+      -extent.south + labelHeight / 2,
+    );
+    floor.group.add(label);
 
-  const label = makeLabel(`${floor.info.floor_label} (level ${floor.info.floor_level})`);
-  const labelHeight = unit * 3;
-  label.scale.set(labelHeight * label.userData.aspect, labelHeight, 1);
-  label.position.set(layout.west + (labelHeight * label.userData.aspect) / 2, unit * 1.5, layout.centerZ + layout.depth / 2 + labelHeight / 2);
-  floor.group.add(label);
-
-  if (floor.grid) addHeatmap(floor, floor.grid);
-  addAccessPoints(floor, unit);
+    if (floor.grid) addHeatmap(floor, floor.grid);
+    addAccessPoints(floor, unit);
+  }
+  addTrail(floor, unit);
   applyVisibility(floor);
 }
 
@@ -359,7 +406,80 @@ function addAccessPoints(floor, unit) {
   }
 }
 
+/** A marker on a pole with a label: the start or the end of the walk. */
+function addEndMarker(floor, point, text, color, shape, unit) {
+  const marker = new THREE.Group();
+  const material = new THREE.MeshLambertMaterial({ color });
+  const body = new THREE.Mesh(
+    shape === 'cone' ? new THREE.ConeGeometry(unit * 1.1, unit * 2.2, 16) : new THREE.SphereGeometry(unit * 1.1, 16, 12),
+    material,
+  );
+  body.position.y = unit * 3.2;
+  if (shape === 'cone') body.rotation.x = Math.PI; // point down at the spot
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(unit * 0.08, unit * 0.08, unit * 3, 6),
+    new THREE.MeshBasicMaterial({ color }),
+  );
+  pole.position.y = unit * 1.5;
+  const name = makeLabel(text, color);
+  const nameHeight = unit * 2.6;
+  name.scale.set(nameHeight * name.userData.aspect, nameHeight, 1);
+  name.position.y = unit * 6;
+  marker.add(body, pole, name);
+  marker.position.set(point.x, TRAIL_Y, point.z);
+  floor.group.add(marker);
+  floor.trailMeshes.push(marker);
+}
+
+/** The walked path of one floor: a line, a dot at every scan, a start and an end. */
+function addTrail(floor, unit) {
+  const points = floor.trailPoints;
+  if (!points || points.length === 0) return;
+  const dots = points.filter((p) => p.kind !== 'start');
+  if (points.length > 1) {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points.map((p) => new THREE.Vector3(p.x, TRAIL_Y, p.z))),
+      new THREE.LineBasicMaterial({ color: TRAIL_COLOR }),
+    );
+    floor.group.add(line);
+    floor.trailMeshes.push(line);
+  }
+  if (dots.length > 0) {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(unit * 0.4, 8, 6),
+      new THREE.MeshBasicMaterial({ color: TRAIL_COLOR }),
+      dots.length,
+    );
+    const matrix = new THREE.Matrix4();
+    dots.forEach((p, i) => {
+      matrix.makeTranslation(p.x, TRAIL_Y, p.z);
+      mesh.setMatrixAt(i, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    floor.group.add(mesh);
+    floor.trailMeshes.push(mesh);
+  }
+  const { start, end } = state.trail;
+  if (start && start.floor_id === floor.info.floor_id) {
+    addEndMarker(floor, points[0], 'Start', START_COLOR, 'sphere', unit);
+  }
+  if (end && end.floor_id === floor.info.floor_id) {
+    addEndMarker(floor, points[points.length - 1], 'End', END_COLOR, 'cone', unit);
+  }
+}
+
+/** Trail points of a floor as scene positions (x east, z south). */
+function trailPointsOf(floor) {
+  const trailFloor = state.trail && state.trail.floors.find((f) => f.floor_id === floor.info.floor_id);
+  if (!trailFloor) return [];
+  return trailFloor.points.map((p) => {
+    const local = toLocal(p.lat, p.lng, state.survey.origin_lat, state.survey.origin_lng);
+    return { x: local.x, z: -local.y, kind: p.kind };
+  });
+}
+
 function applyVisibility(floor) {
+  for (const object of floor.trailMeshes || []) object.visible = els.showTrail.checked;
   floor.group.visible = floor.visible;
   if (floor.deadMesh) floor.deadMesh.visible = els.showDead.checked;
   for (const item of floor.apMeshes) {
@@ -375,11 +495,14 @@ function applyAllVisibility() {
 function frameScene() {
   const box = new THREE.Box3();
   for (const floor of state.floors) {
-    if (!floor.layout) continue;
     const y = floor.group.position.y;
-    const { west, south, width, depth } = floor.layout;
-    box.expandByPoint(new THREE.Vector3(west, y, -(south + depth)));
-    box.expandByPoint(new THREE.Vector3(west + width, y + 4, -south));
+    const extent = floorExtent(floor);
+    if (extent) {
+      const { west, south, width, depth } = extent;
+      box.expandByPoint(new THREE.Vector3(west, y, -(south + depth)));
+      box.expandByPoint(new THREE.Vector3(west + width, y + 4, -south));
+    }
+    for (const p of floor.trailPoints || []) box.expandByPoint(new THREE.Vector3(p.x, y, p.z));
   }
   if (box.isEmpty()) return;
   const center = box.getCenter(new THREE.Vector3());
@@ -474,6 +597,11 @@ function buildLegend() {
   els.legend.replaceChildren();
   const rows = legendEntries(state.thresholds).map((entry) => ({ text: entry.text, color: entry.color }));
   rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: true });
+  if (state.trail && state.trail.start) {
+    rows.push({ text: 'Walked path', color: TRAIL_COLOR });
+    rows.push({ text: 'Start', color: START_COLOR });
+    rows.push({ text: 'End', color: END_COLOR });
+  }
   for (const row of rows) {
     const item = document.createElement('li');
     const swatch = document.createElement('span');
@@ -559,6 +687,7 @@ async function changeNetwork() {
 
 els.network.addEventListener('change', changeNetwork);
 els.showAps.addEventListener('change', applyAllVisibility);
+els.showTrail.addEventListener('change', applyAllVisibility);
 els.showDead.addEventListener('change', applyAllVisibility);
 els.layersToggle.addEventListener('click', () => {
   const open = els.layers.hidden;
@@ -576,7 +705,7 @@ async function start({ surveyId, token }) {
   }
   state.generation += 1;
   const generation = state.generation;
-  Object.assign(state, { token, surveyId, bssid: '', survey: null, accessPoints: [], floors: [] });
+  Object.assign(state, { token, surveyId, bssid: '', survey: null, accessPoints: [], trail: null, floors: [] });
   els.info.hidden = true;
   showStatus('Loading coverage…');
   try {
@@ -584,17 +713,28 @@ async function start({ surveyId, token }) {
       api(`/surveys/${surveyId}`),
       api(`/surveys/${surveyId}/summary`),
     ]);
-    const [networks, accessPoints] = await Promise.all([
+    const [networks, accessPoints, trail] = await Promise.all([
       allPages(`/surveys/${surveyId}/networks?sort=-reading_count`),
       allPages(`/surveys/${surveyId}/access-points`),
+      // The coverage still shows if the walk cannot be loaded.
+      api(`/surveys/${surveyId}/trail`).catch(() => null),
     ]);
     const floors = [...summary.floors]
       .sort((a, b) => b.floor_level - a.floor_level)
-      .map((info) => ({ info, visible: true, grid: null, layout: null, group: new THREE.Group() }));
+      .map((info) => ({
+        info,
+        visible: true,
+        grid: null,
+        baseGrid: null,
+        layout: null,
+        trailPoints: [],
+        group: new THREE.Group(),
+      }));
     state.survey = survey;
     await Promise.all(
       floors.map(async (floor) => {
         floor.grid = await loadGrid(floor, null);
+        floor.baseGrid = floor.grid;
         floor.layout = floor.grid ? gridLayout(floor.grid) : null;
       }),
     );
@@ -609,6 +749,8 @@ async function start({ surveyId, token }) {
     }
     state.floors = floors;
     state.accessPoints = accessPoints;
+    state.trail = trail;
+    for (const floor of floors) floor.trailPoints = trailPointsOf(floor);
 
     ensureRenderer();
     root.children.slice().forEach((child) => {

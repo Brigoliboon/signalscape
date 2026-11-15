@@ -10,9 +10,16 @@ from sqlalchemy.orm import Session
 
 from app.models.building import Floor
 from app.models.result import AccessPointEstimate, CoverageGrid
-from app.models.survey import ScanReading, Survey, SurveyStatus
+from app.models.survey import (
+    Checkpoint,
+    CheckpointSource,
+    ScanReading,
+    Survey,
+    SurveyStatus,
+)
 from app.models.user import UserRole
 from app.services import processing as proc
+from app.services import trail as trail_service
 from tests.helpers import make_floor, make_user
 from tests.test_surveys import World
 
@@ -102,6 +109,11 @@ class Scene(World):
 @pytest.fixture
 def scene(client: TestClient, db_session: Session) -> Scene:
     return Scene(client, db_session)
+
+
+@pytest.fixture
+def world(client: TestClient, db_session: Session) -> World:
+    return World(client, db_session)
 
 
 def count(db: Session, model) -> int:
@@ -505,6 +517,7 @@ def test_viewer_reads_results_of_shared_surveys_only(scene: Scene) -> None:
     headers = scene.headers_for(viewer)
     cover = f"coverage?floor_id={scene.floor.id}"
     paths = [cover, "access-points", "summary", "networks", "geojson", "export.csv"]
+    paths.append("trail")
     for path in paths:
         assert scene.get(path, headers).status_code == 404, path
     shared = scene.client.post(
@@ -519,6 +532,7 @@ def test_other_surveyors_and_anonymous_cannot_read_results(scene: Scene) -> None
     scene.processed()
     other = make_user(scene.db, consented=True)
     paths = ["access-points", "summary", "networks", "geojson", "export.csv"]
+    paths.append("trail")
     for path in paths:
         assert scene.get(path, scene.headers_for(other)).status_code == 404, path
         assert scene.client.get(f"{scene.url}/{path}").status_code == 401, path
@@ -723,7 +737,168 @@ def test_result_routes_are_documented(client: TestClient) -> None:
         "access-points",
         "summary",
         "networks",
+        "trail",
         "geojson",
         "export.csv",
     ):
         assert f"/api/surveys/{{survey_id}}/{suffix}" in paths
+
+
+# --- trail ------------------------------------------------------------------
+
+
+def add_checkpoint(
+    db: Session, survey: Survey, floor: Floor, x: float, y: float, at: datetime
+) -> None:
+    lat, lng = proc.to_geo(x, y, survey.origin_lat, survey.origin_lng)
+    db.add(
+        Checkpoint(
+            survey_id=survey.id,
+            floor_id=floor.id,
+            client_id=uuid.uuid4(),
+            lat=lat,
+            lng=lng,
+            estimated_lat=lat,
+            estimated_lng=lng,
+            source=CheckpointSource.TAP,
+            recorded_at=at,
+        )
+    )
+    db.commit()
+
+
+def test_trail_works_before_processing_and_is_in_time_order(scene: Scene) -> None:
+    body = scene.get("trail").json()
+    assert body["survey_id"] == str(scene.survey.id)
+    # Floors by level; the first floor's scans are one point each, in time order.
+    assert [f["floor_level"] for f in body["floors"]] == [0, 1]
+    ground, first = body["floors"]
+    assert ground["floor_id"] == str(scene.floor.id)
+    # The start, then the 8 scans.
+    assert [p["kind"] for p in ground["points"]] == ["start"] + ["reading"] * 8
+    times = [p["at"] for p in ground["points"][1:]]
+    assert times == sorted(times)
+    # Scans are 2 m apart along the x axis (east), so the longitude grows.
+    lngs = [p["lng"] for p in ground["points"][1:]]
+    assert lngs[:4] == sorted(lngs[:4])
+    assert len(first["points"]) == 2
+    assert all(p["kind"] == "reading" for p in first["points"])
+
+
+def test_trail_start_is_the_survey_origin_on_the_first_floor(scene: Scene) -> None:
+    body = scene.get("trail").json()
+    assert body["start"]["kind"] == "start"
+    assert body["start"]["floor_id"] == str(scene.floor.id)
+    assert body["start"]["lat"] == scene.survey.origin_lat
+    assert body["start"]["lng"] == scene.survey.origin_lng
+    assert body["floors"][0]["points"][0] == body["start"]
+    # The last scan was on the first floor, taken at 101 * 100 s.
+    assert body["end"]["kind"] == "reading"
+    assert body["end"]["floor_id"] == str(scene.floor1.id)
+    assert body["end"]["floor_level"] == 1
+    assert body["end"]["at"] == body["floors"][1]["points"][-1]["at"]
+
+
+def test_trail_has_one_point_per_scan_not_per_network(scene: Scene) -> None:
+    # Two more networks heard in the very same scan as the first reading.
+    first = scene.db.scalars(
+        select(ScanReading)
+        .where(ScanReading.floor_id == scene.floor.id)
+        .order_by(ScanReading.scanned_at)
+    ).first()
+    assert first is not None
+    for bssid in ("aa:bb:cc:dd:ee:03", "aa:bb:cc:dd:ee:04"):
+        scene.db.add(
+            ScanReading(
+                survey_id=scene.survey.id,
+                floor_id=first.floor_id,
+                client_id=uuid.uuid4(),
+                lat=first.lat,
+                lng=first.lng,
+                bssid=bssid,
+                ssid="x",
+                rssi_dbm=-80,
+                frequency_mhz=2437,
+                scanned_at=first.scanned_at,
+            )
+        )
+    scene.db.commit()
+    points = scene.get("trail").json()["floors"][0]["points"]
+    assert [p["kind"] for p in points].count("reading") == 8
+
+
+def test_trail_merges_checkpoints_by_time(scene: Scene) -> None:
+    # Between the 2nd and 3rd scan of the ground floor, and one on the same
+    # moment as the 4th scan, which must come after that scan.
+    add_checkpoint(
+        scene.db, scene.survey, scene.floor, 3.5, 0.5, T0 + timedelta(seconds=150)
+    )
+    add_checkpoint(
+        scene.db, scene.survey, scene.floor, 6.5, 1.5, T0 + timedelta(seconds=300)
+    )
+    points = scene.get("trail").json()["floors"][0]["points"]
+    kinds = [p["kind"] for p in points]
+    assert kinds == [
+        "start",
+        "reading",
+        "reading",
+        "checkpoint",
+        "reading",
+        "reading",
+        "checkpoint",
+        "reading",
+        "reading",
+        "reading",
+        "reading",
+    ]
+    times = [p["at"] for p in points[1:]]
+    assert times == sorted(times)
+
+
+def test_trail_ends_on_a_checkpoint_when_that_is_last(scene: Scene) -> None:
+    late = T0 + timedelta(days=1)
+    add_checkpoint(scene.db, scene.survey, scene.floor1, 1.0, 1.0, late)
+    body = scene.get("trail").json()
+    assert body["end"]["kind"] == "checkpoint"
+    assert body["end"]["floor_id"] == str(scene.floor1.id)
+
+
+def test_trail_of_a_survey_with_a_checkpoint_only(world: World) -> None:
+    add_checkpoint(world.db, world.survey, world.floor, 1.0, 2.0, T0)
+    body = world.client.get(f"{world.url}/trail", headers=world.headers).json()
+    assert body["start"]["kind"] == "start"
+    assert body["end"]["kind"] == "checkpoint"
+    assert len(body["floors"][0]["points"]) == 2
+
+
+def test_trail_of_an_empty_survey(world: World) -> None:
+    response = world.client.get(f"{world.url}/trail", headers=world.headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "survey_id": str(world.survey.id),
+        "start": None,
+        "end": None,
+        "floors": [],
+    }
+
+
+def test_trail_is_thinned_but_keeps_the_ends(
+    scene: Scene, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(trail_service, "MAX_POINTS_PER_FLOOR", 4)
+    ground = scene.get("trail").json()["floors"][0]["points"]
+    assert len(ground) == 4
+    assert ground[0]["kind"] == "start"
+    # The ground floor had the start and 8 scans; the last one is kept.
+    full_last = scene.db.scalars(
+        select(ScanReading.scanned_at)
+        .where(ScanReading.floor_id == scene.floor.id)
+        .order_by(ScanReading.scanned_at.desc())
+    ).first()
+    assert datetime.fromisoformat(ground[-1]["at"]) == full_last
+
+
+def test_thin_returns_short_lists_untouched() -> None:
+    assert trail_service._thin([1, 2, 3], 3) == [1, 2, 3]
+    assert trail_service._thin(list(range(10)), 2) == [0, 9]
+    assert trail_service._thin(list(range(100)), 5) == [0, 25, 50, 74, 99]

@@ -230,6 +230,7 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 | GET | `/surveys/{id}/coverage` | `floor_id` (required), `bssid` (optional); returns the grid plus the thresholds used |
 | GET | `/surveys/{id}/access-points` | filter `floor_id`, `ssid` |
 | GET | `/surveys/{id}/summary` | per floor: area covered, readings, floor height, good/fair/dead percentages (FR-19) |
+| GET | `/surveys/{id}/trail` | the walk, floor by floor in time order: scan positions (one per scan) merged with checkpoints, plus `start` (the survey origin, on the floor of the first point) and `end` (the last scan or checkpoint). Works before processing. Each floor is thinned to 5000 points. Only scan positions and checkpoints are uploaded, so the line is as fine as the scans |
 | GET | `/surveys/{id}/export.csv` | all readings as CSV (FR-21) |
 | GET | `/surveys/{id}/geojson` | GeoJSON FeatureCollection; params `floor_level`, `bssid`, `include` (`cells`, `access_points`, `readings`) |
 
@@ -257,13 +258,13 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 5. The survey screen shows the reading count, how many are waiting to sync, and an online/offline indicator. Ending a survey flushes the queue; if still offline the survey stays "ending" locally and is completed and processed once synced.
 
 **Live visuals during a survey:**
-- A trail of points on the floor plan, each colored by RSSI against the user's thresholds (good, fair, dead). Works offline.
+- A trail on the floor plan: a solid line through every step (so it stays drawn between Wi-Fi scans, which Android limits to about four per two minutes), a dot per scan colored by RSSI against the user's thresholds (good, fair, dead), and a marker at the start. The view fits the walk, not the heatmap. Works offline.
 - When online, a preview heatmap refreshed about every 60 s by calling `POST /surveys/{id}/process?preview=true` on the readings synced so far. Preview results are not marked final and the status stays `active`.
 
 ## 7. Open decisions
 
 1. **IDW vs kriging:** this draft uses IDW for the API and leaves kriging as a comparison for the paper.
 2. **Floor dimensions (decided):** `floors.width_m` and `length_m` are optional, used only to size the 3D floor plane; the grid extent comes from the readings.
-3. **3D view location (decided):** a Three.js page served by the API at `/api/viewer/` and opened in the app's WebView keeps one implementation. The page is static and public (it holds no data). The app hands it the survey ID and the user's JWT in the URL fragment (`/api/viewer/#survey=<id>&token=<jwt>`) or by calling `window.signalscapeViewer.start({surveyId, token})` after load. A fragment is never sent to a server, so the token stays out of access logs and Caddy logs. The page removes it from the address bar and keeps it in memory only, then calls `/surveys/{id}`, `/summary`, `/networks`, `/access-points` and `/coverage` with `Authorization: Bearer`, so roles and shares apply as for any client. Floor heights come from `floor_height_m` in `/summary`, because Viewers cannot read `/buildings`. The page is served with a strict Content-Security-Policy (own scripts and styles only, `connect-src 'self'`, no framing). Three.js is vendored under `api/app/static/viewer/vendor/` (no CDN, no build step).
+3. **3D view location (decided):** a Three.js page served by the API at `/api/viewer/` and opened in the app's WebView keeps one implementation. The page is static and public (it holds no data). The app hands it the survey ID and the user's JWT in the URL fragment (`/api/viewer/#survey=<id>&token=<jwt>`) or by calling `window.signalscapeViewer.start({surveyId, token})` after load. A fragment is never sent to a server, so the token stays out of access logs and Caddy logs. The page removes it from the address bar and keeps it in memory only, then calls `/surveys/{id}`, `/summary`, `/networks`, `/access-points`, `/trail` and `/coverage` with `Authorization: Bearer`, so roles and shares apply as for any client. Floor heights come from `floor_height_m` in `/summary`, because Viewers cannot read `/buildings`. The page is served with a strict Content-Security-Policy (own scripts and styles only, `connect-src 'self'`, no framing). Three.js is vendored under `api/app/static/viewer/vendor/` (no CDN, no build step).
 4. **Refresh tokens:** left out for now (24-hour access tokens). Can be added if the app needs longer sessions.
 5. **Viewer role:** included through `survey_shares`; can be dropped if two roles are enough.
