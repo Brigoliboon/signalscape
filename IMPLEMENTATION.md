@@ -24,7 +24,8 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Wireframes for the 8+ screens
 - [x] Interpolation and access point estimation methods chosen
 - [ ] RA 10173 privacy notice and data handling plan
-- [ ] API framework and Flutter packages chosen
+- [x] API framework chosen (FastAPI)
+- [ ] Flutter packages chosen
 
 ## M3, Week 3: API foundation and deployment (MVP part 1)
 - [x] API project set up in `api/`

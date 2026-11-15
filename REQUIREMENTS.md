@@ -18,10 +18,10 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 
 ## 4. Objectives
 
-1. Collect RSSI readings tagged with an estimated indoor position and floor, without GPS or extra hardware.
+1. Collect RSSI readings tagged with an estimated position (latitude and longitude) and floor, using one GPS fix at the start of the survey plus pedestrian dead reckoning, with no extra hardware.
 2. Estimate coverage between readings with mathematical interpolation (no trained model needed), served behind its own REST API.
 3. Estimate the physical location of each access point from its readings.
-4. Show coverage per floor in a Three.js 3D view, with dead zones and estimated access points marked.
+4. Show coverage per floor in a Three.js 3D view and a 2D map (floors as layers), with dead zones and estimated access points marked.
 5. Meet the course's technical rules (section 7).
 6. Handle survey data in line with RA 10173 (Data Privacy Act of 2012).
 7. Test on a real building and write it up as an IEEE paper.
@@ -31,11 +31,14 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 **In scope**
 - Wi-Fi only (2.4 GHz and 5 GHz networks the phone can scan).
 - Android phones.
-- Indoor positioning by pedestrian dead reckoning (steps plus heading), with manual checkpoints to correct drift.
+- Positioning anchored to a GPS fix at survey start, then pedestrian dead reckoning (steps plus heading), with checkpoints to correct drift. Positions are stored as latitude and longitude.
 - Floor detection by barometric pressure changes.
-- Coverage interpolation per floor (for example inverse distance weighting or kriging).
+- Server-side data cleaning of readings (range checks, de-duplication, outlier removal).
+- Coverage interpolation per floor by inverse distance weighting (IDW); kriging only as a comparison in the paper.
 - Access point location estimation.
 - 3D floor-by-floor visualization with Three.js.
+- 2D map view from GeoJSON, one layer per floor.
+- Offline-first capture with background sync.
 
 **Out of scope**
 - Cellular signal mapping.
@@ -47,7 +50,7 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 
 ### 6.1 Accounts and roles
 - FR-1: Users register and sign in. The API issues JWTs.
-- FR-2: At least 2 roles. Proposed: **Admin** (manages users, all buildings and surveys) and **Surveyor** (creates buildings, runs surveys, views their own maps). An optional **Viewer** role can only view shared maps.
+- FR-2: At least 2 roles. Proposed: **Admin** (manages users, all buildings and surveys) and **Surveyor** (creates buildings, runs surveys, views their own maps). A **Viewer** role can only view surveys shared with them (survey shares).
 - FR-3: Role-based access control is enforced on the API, not just hidden in the app.
 - FR-3a: Passwords hashed with bcrypt.
 - FR-3b: Input validation on every endpoint, and pagination, filtering and sorting on every list endpoint.
@@ -55,31 +58,33 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 
 ### 6.2 Buildings and floors
 - FR-4: Create, edit, list and delete buildings.
-- FR-5: Define floors per building (number, label, approximate size), and optionally upload a floor plan image.
+- FR-5: Define floors per building (level, label, optional approximate size), and optionally upload a floor plan image (PNG or JPEG, up to 5 MB).
 
 ### 6.3 Survey capture (app)
 - FR-6: Start, pause and end a survey session for a building.
 - FR-7: Scan Wi-Fi networks periodically and record SSID, BSSID, RSSI (dBm), frequency and timestamp.
-- FR-8: Track position with step detection, step length and heading (gyroscope plus compass), relative to a starting point.
+- FR-8: Take a GPS fix at survey start (accuracy 10 m or better) as the origin, then track position with step detection, step length and heading (gyroscope plus compass). Each reading is tagged with latitude, longitude and estimated accuracy.
 - FR-9: Detect floor changes with the barometer and tag readings with the floor.
-- FR-10: Let the surveyor set checkpoints (tap their real position on the floor or plan) to correct position drift.
-- FR-11: Store readings offline on the phone and upload them to the API when online.
+- FR-10: Correct position drift with checkpoints: the surveyor taps their real position, or the app uses a GPS fix with accuracy 10 m or better. The error is spread over the readings since the last checkpoint.
+- FR-11: Save every reading on the phone first, then upload in background batches with retries. Each reading has a phone-generated ID so re-uploads are never stored twice.
+- FR-11a: During a survey, show a live trail colored by signal level, and when online, a preview heatmap refreshed about every 60 seconds.
 
 ### 6.4 Processing (API)
-- FR-12: Validate and store uploaded readings.
-- FR-13: Build a coverage grid per floor and per network (or the strongest signal) using interpolation.
-- FR-14: Estimate each access point's position (for example a weighted centroid or a log-distance path-loss fit).
+- FR-12: Validate and store uploaded readings, then clean them before processing: drop out-of-range values, merge repeat scans of the same access point at the same spot (median RSSI), and remove outliers.
+- FR-13: Build a coverage grid per floor and per network (or the strongest signal) using inverse distance weighting.
+- FR-14: Estimate each access point's position with a weighted centroid of its strongest readings (a log-distance path-loss fit can replace it later).
 - FR-15: Classify grid cells into signal levels (for example good above -67 dBm, fair -67 to -80 dBm, dead below -80 dBm; thresholds configurable).
 
 ### 6.5 Visualization
-- FR-16: A 3D view (Three.js, inside the app through a WebView or as a web page) shows the floors stacked, with a coverage heatmap per floor.
+- FR-16: A 3D view (a Three.js page served by the API, opened in the app through a WebView) shows the floors stacked, with a coverage heatmap per floor.
+- FR-16a: A 2D map view shows the same coverage from GeoJSON, with one layer per floor.
 - FR-17: Filter by network (SSID/BSSID) and by floor.
 - FR-18: Mark dead zones and estimated access point positions.
 - FR-19: Show a survey summary (area covered, number of readings, percentage of dead zones per floor).
 
 ### 6.6 Data and privacy
 - FR-20: Users can view and delete their own surveys and account.
-- FR-21: Export a survey's readings as CSV.
+- FR-21: Export a survey's readings as CSV, and its coverage, access points and readings as GeoJSON.
 - FR-22: A privacy notice and consent screen before the first survey.
 
 ## 7. Course technical requirements
@@ -93,7 +98,7 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 | C-5 | Docker | API, database and reverse proxy in Docker Compose |
 | C-6 | Caddy | Caddy as the reverse proxy with automatic HTTPS |
 | C-7 | GitHub Actions auto-deploy | Full CI/CD pipeline with tests, builds and auto-deploy (section 10) |
-| C-8 | Public HTTPS | Public domain served by Caddy |
+| C-8 | Public HTTPS | `https://signalscape.boonbrigoli.site`, served by Caddy with automatic HTTPS |
 | C-9 | JWT auth with 2+ roles | Admin and Surveyor (plus optional Viewer) |
 | C-10 | OpenAPI docs at /api/docs | Generated from the API and served at `/api/docs` |
 | C-11 | Documentation plus IEEE paper | System documentation, user manual, API reference and IEEE paper in week 7 |
@@ -116,7 +121,7 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 6. Add or edit building and floors
 7. Survey capture (live readings, step count, floor, checkpoints)
 8. Survey list / history
-9. 3D coverage view
+9. 3D coverage view and 2D map view
 10. Survey summary and export
 11. Profile and settings (thresholds, delete account)
 12. Admin: user management
@@ -124,10 +129,10 @@ Turn a walk-through of a building into a 3D Wi-Fi coverage map, using only a pho
 ## 9. Data privacy (RA 10173)
 
 - Personal data stored: account details (name, email, hashed password), and survey data that shows where a user walked inside a building and when.
-- Collect only what's needed. No GPS coordinates, contacts or device identifiers beyond what auth needs.
+- Collect only what's needed. Location is collected only during an active survey (a GPS fix at the start, then estimated positions inside the building) and is treated as personal data. No contacts or device identifiers beyond what auth needs.
 - Consent before the first survey, with a clear privacy notice.
 - Passwords hashed (bcrypt or argon2). HTTPS everywhere. Role-based access to surveys.
-- Users can view, export and delete their data.
+- Users can view, export and delete their data. Deleting a survey or account removes its readings, results and uploaded floor plans.
 - Network names (SSIDs) and BSSIDs belong to the building's networks; surveys should only be run where the user is allowed to.
 
 ## 10. CI/CD pipeline (GitHub Actions)
@@ -169,11 +174,28 @@ Runs on every push and pull request. Merges to `main` deploy automatically. **Co
 - Step-counting positions drift over distance, so checkpoints are required for usable maps.
 - Barometer readings vary with weather and the HVAC, so floor detection uses relative pressure changes during a session, not absolute values.
 - Not every phone has a barometer, so manual floor selection is the fallback.
+- Indoor GPS is often 5 to 30 m off, so only the start fix and good fixes (10 m or better) are used; the surveyor should start near an entrance or window.
 
 ## 13. Open questions
 
-- Proposal: up to 3 titles; no work counts until one is approved.
 - Week 1 start date and the Classroom due dates.
-- Final interpolation method (IDW vs kriging) and the access point estimation method.
-- API framework choice.
-- Whether the 3D view lives in the app (WebView) or as a web page served by the API.
+
+Resolved (see section 14): proposal approved; interpolation is IDW and access point estimation is a weighted centroid; the API framework is FastAPI; the 3D view is a page served by the API and opened in a WebView.
+
+## 14. Change log
+
+Newest first. Times are Asia/Manila (UTC+8).
+
+### 2026-11-15
+- **Buildings and floors** built ([PR #7](https://github.com/Brigoliboon/signalscape/pull/7)): CRUD with pagination, sorting and search, floor plan upload, and role rules. Floor size is now optional (FR-5).
+- **Sign-in and roles** built and merged ([PR #5](https://github.com/Brigoliboon/signalscape/pull/5)): JWT, bcrypt, Admin, Surveyor and Viewer roles, and admin user management (FR-1 to FR-3b).
+- **Week 2 design** approved and merged ([PR #4](https://github.com/Brigoliboon/signalscape/pull/4), `docs/DESIGN.md`). Decisions recorded here:
+  - Positions are latitude and longitude from a GPS fix at survey start plus dead reckoning (objective 1, FR-8, FR-10). The privacy section now treats location as personal data.
+  - Server-side data cleaning before processing (FR-12).
+  - IDW for coverage and a weighted centroid for access points (FR-13, FR-14).
+  - Offline-first capture with background sync, and live visuals during a survey (FR-11, FR-11a).
+  - A 2D map view and GeoJSON export, with floors as layers (FR-16a, FR-21).
+  - The 3D view is a page served by the API in a WebView (FR-16).
+  - The Viewer role sees only surveys shared with them (FR-2).
+- **CI/CD** live ([PR #1](https://github.com/Brigoliboon/signalscape/pull/1) to [PR #3](https://github.com/Brigoliboon/signalscape/pull/3)): tests, builds and auto-deploy on a self-hosted runner, public HTTPS at `signalscape.boonbrigoli.site` (C-8), branch protection on `main` (CD-5), and path filters so only changed parts are checked.
+
