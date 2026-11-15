@@ -12,7 +12,7 @@ SignalScape is a Flutter Android app plus a FastAPI REST API that maps a buildin
 
 ## Repo layout
 - `api/`: FastAPI backend, Postgres, Docker, migrations, tests.
-- `signalscape_mobile/`: Flutter Android app (includes the Three.js 3D view in a WebView).
+- `app/`: Flutter Android app (includes the Three.js 3D view in a WebView).
 - `.github/workflows/`: CI and CD.
 - Don't create new top-level folders without asking.
 

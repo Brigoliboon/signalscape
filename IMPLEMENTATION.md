@@ -4,7 +4,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 
 **Repo layout**
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
-- `signalscape_mobile/`: Flutter Android app.
+- `app/`: Flutter Android app.
 
 **Status:** M3 in progress (Nov 15, 2026). Week dates are set once week 1's start is confirmed.
 
@@ -44,7 +44,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Branch protection on `main` with required checks (CD-5)
 
 ## M4, Week 4: Survey capture in the app (MVP part 2, MVP due end of week 4)
-- [ ] Flutter project set up in `signalscape_mobile/`
+- [ ] Flutter project set up in `app/`
 - [ ] CI for the app: `flutter analyze`, format check, `flutter test`, release APK build (CI-7 to CI-9)
 - [ ] Sign in, register and consent screens wired to the API
 - [ ] Building list, details and edit screens

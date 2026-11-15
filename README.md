@@ -27,7 +27,7 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 ```
 signalscape/
 ├── api/                  # FastAPI backend
-├── signalscape_mobile/   # Flutter Android app
+├── app/                  # Flutter Android app
 ├── .github/workflows/    # CI and CD
 ├── REQUIREMENTS.md       # What to build
 ├── IMPLEMENTATION.md     # Build order and progress
