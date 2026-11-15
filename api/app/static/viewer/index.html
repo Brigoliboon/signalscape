@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>SignalScape: 3D coverage</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="3D Wi-Fi coverage, floors stacked. Drag to rotate, pinch to zoom, two fingers to move." role="img"></canvas>
+
+  <header class="bar">
+    <h1>Wi-Fi coverage</h1>
+    <button id="layers-toggle" type="button" aria-expanded="false" aria-controls="layers">Layers</button>
+  </header>
+
+  <section class="legend" aria-label="Legend">
+    <ul id="legend-list"></ul>
+  </section>
+
+  <p id="status" role="status" aria-live="polite">Open this page from the SignalScape app.</p>
+  <p id="info" role="status" aria-live="polite" hidden></p>
+
+  <section id="layers" class="sheet" aria-label="Layers" hidden>
+    <label class="field" for="network">Network</label>
+    <select id="network"></select>
+
+    <fieldset>
+      <legend>Floors</legend>
+      <div id="floor-list"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Markers</legend>
+      <label class="check"><input id="show-aps" type="checkbox" checked> Estimated access points</label>
+      <label class="check"><input id="show-dead" type="checkbox" checked> Highlight dead zones</label>
+    </fieldset>
+  </section>
+
+  <script type="module" src="viewer.mjs"></script>
+  <noscript>This page needs JavaScript.</noscript>
+</body>
+</html>

@@ -285,6 +285,7 @@ def _floor_summary(
         floor_id=floor.id,
         floor_level=floor.level,
         floor_label=floor.label,
+        floor_height_m=float(floor.height_m),
         raw_reading_count=result.raw_count,
         cleaned_reading_count=result.cleaned_count,
         area_covered_m2=(
@@ -469,6 +470,7 @@ def stored_summary(db: Session, survey: Survey) -> list[FloorSummary]:
                 floor_id=floor.id,
                 floor_level=floor.level,
                 floor_label=floor.label,
+                floor_height_m=float(floor.height_m),
                 raw_reading_count=raw[floor.id],
                 cleaned_reading_count=grid.cleaned_reading_count if grid else 0,
                 area_covered_m2=covered * grid.cell_size_m**2 if grid else 0.0,
