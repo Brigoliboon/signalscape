@@ -66,7 +66,7 @@ cd app && flutter test
 ```
 
 ## CI/CD
-- **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It covers lint, tests with a Postgres container, the OpenAPI check, the Docker build, a dependency scan, `flutter analyze`, `flutter test` and the APK build. Backend coverage below 60% fails the build. Flutter jobs skip if `app/pubspec.yaml` is missing.
+- **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It covers lint, tests with a Postgres container, the OpenAPI check, the Docker build, a dependency scan, `flutter analyze`, `flutter test` and the APK build. Backend coverage below 60% fails the build. API jobs run only when `api/` or a workflow changes, and the Flutter job only when `app/` or `ci.yml` changes. The secret and dependency scan always runs, and tags and manual runs run everything.
 - **CD** (`.github/workflows/cd.yml`) runs after CI succeeds on `main`. It pushes the API image to GitHub Container Registry, then a self-hosted runner pulls the image, restarts Docker Compose (with Caddy), runs migrations, and smoke tests `/api/health` and `/api/docs` through the public HTTPS URL.
 - The final release is tagged `v1.0`.
 

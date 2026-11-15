@@ -15,8 +15,44 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.result.outputs.api }}
+      app: ${{ steps.result.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - '.github/workflows/**'
+            app:
+              - 'app/**'
+              - '.github/workflows/ci.yml'
+      # Tags and manual runs always run every job.
+      - name: Decide which jobs run
+        id: result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "api=${{ steps.filter.outputs.api }}" >> "$GITHUB_OUTPUT"
+            echo "app=${{ steps.filter.outputs.app }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "api=${{ steps.filter.outputs.api }} app=${{ steps.filter.outputs.app }}"
+
   api-lint:
     name: api-lint
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,6 +75,8 @@ jobs:
 
   api-test:
     name: api-test
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -83,6 +121,8 @@ jobs:
 
   api-openapi:
     name: api-openapi
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -132,6 +172,8 @@ jobs:
 
   api-docker:
     name: api-docker
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,6 +206,8 @@ jobs:
 
   app:
     name: app
+    needs: [changes]
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -223,15 +267,15 @@ jobs:
 
   ci-success:
     name: CI
-    needs: [api-lint, api-test, api-openapi, api-docker, api-audit, app]
+    needs: [changes, api-lint, api-test, api-openapi, api-docker, api-audit, app]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: All CI jobs passed
+      - name: All CI jobs passed or were skipped
         run: |
-          test "${{ needs.api-lint.result }}" = "success"
-          test "${{ needs.api-test.result }}" = "success"
-          test "${{ needs.api-openapi.result }}" = "success"
-          test "${{ needs.api-docker.result }}" = "success"
+          test "${{ needs.changes.result }}" = "success"
           test "${{ needs.api-audit.result }}" = "success"
-          test "${{ needs.app.result }}" = "success"
+          for r in "${{ needs.api-lint.result }}" "${{ needs.api-test.result }}" "${{ needs.api-openapi.result }}" "${{ needs.api-docker.result }}" "${{ needs.app.result }}"; do
+            echo "$r"
+            [ "$r" = "success" ] || [ "$r" = "skipped" ]
+          done
