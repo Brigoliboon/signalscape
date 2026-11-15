@@ -1,6 +1,7 @@
 """ORM models. Import every model here so Alembic sees them in Base.metadata."""
 
 from app.models.building import Building, Floor
+from app.models.result import AccessPointEstimate, CoverageGrid
 from app.models.survey import (
     Checkpoint,
     CheckpointSource,
@@ -12,9 +13,11 @@ from app.models.survey import (
 from app.models.user import User, UserRole
 
 __all__ = [
+    "AccessPointEstimate",
     "Building",
     "Checkpoint",
     "CheckpointSource",
+    "CoverageGrid",
     "Floor",
     "ScanReading",
     "Survey",

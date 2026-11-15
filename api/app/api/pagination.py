@@ -112,3 +112,24 @@ def paginate(
         "page": params.page,
         "page_size": params.page_size,
     }
+
+
+def paginate_rows(
+    db: Session,
+    stmt: Select[Any],
+    params: PageParams,
+    order_by: Sequence[ColumnElement[Any]],
+) -> dict[str, Any]:
+    """Like :func:`paginate` for a select of several columns (for example a
+    ``GROUP BY``). ``items`` are rows; Pydantic models with ``from_attributes``
+    can read them."""
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery()))
+    rows = db.execute(
+        stmt.order_by(*order_by).limit(params.page_size).offset(params.offset)
+    ).all()
+    return {
+        "items": list(rows),
+        "total": total or 0,
+        "page": params.page,
+        "page_size": params.page_size,
+    }

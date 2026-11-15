@@ -141,6 +141,8 @@ Indexes: `(survey_id, floor_id)`, `(survey_id, bssid)`, unique `(survey_id, clie
 | cols, rows | smallint | |
 | values | jsonb | row-major array of dBm, `null` where there's no data |
 | good_pct, fair_pct, dead_pct | real | share of covered cells per level |
+| good_threshold_dbm, dead_threshold_dbm | smallint | thresholds the percentages and cell levels were computed with (the surveyor's at processing time) |
+| raw_reading_count, cleaned_reading_count | integer | readings stored vs. kept after cleaning, for the summary |
 | computed_at | timestamptz | |
 
 Unique `(survey_id, floor_id, bssid) NULLS NOT DISTINCT`. Grids are cached results and are rebuilt by `POST /process`.

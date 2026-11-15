@@ -58,11 +58,11 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a)
 
 ## M5, Week 5: Processing (feature-complete part 1)
-- [ ] Coverage grid per floor and per network by interpolation (FR-13)
-- [ ] Access point position estimation (FR-14)
-- [ ] Signal level classification with configurable thresholds (FR-15)
-- [ ] Map endpoints return grids and access points per floor
-- [ ] Unit tests for the interpolation and access point math, run in CI
+- [x] Coverage grid per floor and per network by interpolation (FR-13)
+- [x] Access point position estimation (FR-14)
+- [x] Signal level classification with configurable thresholds (FR-15)
+- [x] Map endpoints return grids and access points per floor
+- [x] Unit tests for the interpolation and access point math, run in CI
 
 ## M6, Week 6: 3D view and remaining screens (feature-complete and deployed, due end of week 6)
 - [ ] Three.js 3D view with stacked floors and coverage heatmaps (FR-16)
@@ -70,7 +70,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Dead zones and estimated access points marked (FR-18)
 - [ ] Survey summary and CSV export (FR-19, FR-21)
 - [ ] 2D map view from GeoJSON, one layer per floor (FR-16a)
-- [ ] GeoJSON export of coverage, access points and readings (FR-21)
+- [x] GeoJSON export of coverage, access points and readings (FR-21)
 - [ ] Survey history, profile and settings, delete account (FR-20)
 - [ ] Admin user management screen
 - [ ] All 8+ screens done (C-3)
@@ -94,6 +94,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-16 00:35: [PR #11](https://github.com/Brigoliboon/signalscape/pull/11) open: survey processing (migration 0005, numpy). Cleaning (range check, median merge of repeat scans, MAD outliers), IDW coverage on a 1 m grid with a 10 m radius per floor and per network, weighted-centroid access point estimates, signal levels from the surveyor's thresholds. `POST /surveys/{id}/process` (full run on a completed survey, or `preview=true` for the live heatmap), plus `coverage`, `access-points`, `summary`, `networks`, `geojson` (floors as layers) and `export.csv`. 273 tests, 100% coverage. Ticked FR-13 to FR-15, the map endpoints, the math tests and the GeoJSON export. Still open on the app side: FR-11a live heatmap, FR-16 and FR-16a views, FR-18 markers and FR-19 summary screen (their API is done), and the CSV export button.
 - 2026-11-15 20:30: [PR #10](https://github.com/Brigoliboon/signalscape/pull/10) open: surveys API (migration 0004). Start, pause, resume and complete a survey (GPS start fix of 10 m or better, consent required for Surveyors), batch upload of readings and checkpoints that skips repeated `client_id`s (FR-12), and survey shares so Viewers see only shared surveys. Admin sees all, Surveyor own. 201 tests, 100% coverage. Ticked the readings upload endpoint (FR-12); the app side of checkpoints, offline sync and live visuals stays open.
 - 2026-11-15 20:03: [PR #8](https://github.com/Brigoliboon/signalscape/pull/8) open: `REQUIREMENTS.md` updated with the week 2 decisions (GPS fix plus dead reckoning, data cleaning, IDW and weighted centroid, offline sync, live visuals FR-11a, 2D GeoJSON map FR-16a, 3D view in a WebView, Viewers through shares, optional floor size), privacy section for location data, and a change log in section 14. Records FastAPI as the API framework; Flutter package choices still open. Added FR-11a to M4 and FR-16a and GeoJSON export to M6 here.
 - 2026-11-15 20:03: [PR #7](https://github.com/Brigoliboon/signalscape/pull/7) open: buildings and floors CRUD (migration 0003) with pagination, sorting and search; floor plan upload (PNG or JPEG, up to 5 MB) in a new `uploads_data` volume; Admin full access, Surveyor own buildings only, Viewer none; plan files removed on delete. 124 tests, 100% coverage. Tick FR-4, FR-5 and FR-3a/FR-3b once merged.
