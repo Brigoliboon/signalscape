@@ -36,12 +36,12 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [x] `/api/health` (FR-3c)
 - [x] OpenAPI docs served at `/api/docs` (C-10)
 - [x] Docker Compose: API, PostgreSQL, Caddy (C-5, C-6)
-- [ ] Public HTTPS domain (C-8)
+- [x] Public HTTPS domain (C-8)
 - [x] CI for the API: lint, unit tests, integration tests with a PostgreSQL container, OpenAPI check, Docker build, dependency scan (CI-1 to CI-6)
-- [ ] Self-hosted GitHub Actions runner installed on the server
-- [ ] CD: build the image, deploy with Docker Compose on the runner, run migrations, post-deploy smoke test (CD-1 to CD-4). Workflow written; tick after the first green deploy.
+- [x] Self-hosted GitHub Actions runner installed on the server
+- [x] CD: build the image, deploy with Docker Compose on the runner, run migrations, post-deploy smoke test (CD-1 to CD-4).
 - [x] CI fails below 60% backend line coverage (CI-2)
-- [ ] Branch protection on `main` with required checks (CD-5)
+- [x] Branch protection on `main` with required checks (CD-5)
 
 ## M4, Week 4: Survey capture in the app (MVP part 2, MVP due end of week 4)
 - [ ] Flutter project set up in `app/`
@@ -90,6 +90,11 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-15 19:42: M3 auth merged ([PR #5](https://github.com/Brigoliboon/signalscape/pull/5)). Users table (migration 0002), bcrypt password hashing, JWT sign-in, Admin, Surveyor and Viewer roles, register, login, profile and consent endpoints, admin user management, and a CLI to create the first admin. Shared pagination and sorting helper for list endpoints. 53 tests, 100% backend coverage. CI and CD green; deployed. Next: buildings and floors CRUD (FR-4, FR-5).
+- 2026-11-15 19:37: Week 2 design merged ([PR #4](https://github.com/Brigoliboon/signalscape/pull/4), `docs/DESIGN.md`). Database schema, access control, REST API with paging, filtering and sorting, processing math (cleaning, IDW interpolation, access point estimates), offline-first client sync, and GeoJSON output per floor. Still open for week 2: wireframes, RA 10173 privacy plan, package choices.
+- 2026-11-15 18:28: CI path filters merged ([PR #3](https://github.com/Brigoliboon/signalscape/pull/3)), so API and app jobs run only when their files change.
+- 2026-11-15 18:12: First green deploy. [PR #2](https://github.com/Brigoliboon/signalscape/pull/2) fixed the CD smoke test for the VM's older curl after the first deploy from PR #1 failed. `https://signalscape.boonbrigoli.site/api/health` returns ok. Branch ruleset `protect-main` is active (PRs, required checks, no force push or deletion).
+- 2026-11-15 17:55: M3 API foundation and CI/CD merged ([PR #1](https://github.com/Brigoliboon/signalscape/pull/1)). Switched from Cloudflare Tunnel to Caddy serving HTTPS directly (GoDaddy A record to the VM, ports 80 and 443). CI pins Flutter 3.41.6 and Java 17 for the Android build.
 - 2026-11-15: M3 CI/CD. GitHub Actions CI on every push and PR: ruff lint/format (CI-1), pytest against a Postgres container with a 60% coverage fail gate (CI-2, CI-3), OpenAPI/`/api/docs` check (CI-4), Docker image build (CI-5), pip-audit and gitleaks (CI-6). CD after CI succeeds on a push to `main`: push the API image to GHCR (CD-1), self-hosted runner pulls it, restarts Docker Compose, runs migrations, smoke tests `/api/health` and `/api/docs` (CD-2, CD-3). Secrets stay in GitHub Actions (CD-4). Flutter CI (CI-7 to CI-9) runs on `app/`. Self-hosted runner `signalscape-vm` is online on the VM with Docker installed; `POSTGRES_PASSWORD` and `JWT_SECRET` secrets set. Caddy serves `signalscape.boonbrigoli.site` with automatic HTTPS (A record to the VM, ports 80/443). Still open: first green deploy, branch protection (CD-5), public HTTPS domain (C-8).
 - 2026-11-15: M3 API foundation. FastAPI project in `api/` with Alembic, `/api/health` (FR-3c), OpenAPI at `/api/docs` (C-10), and Docker Compose for the API, PostgreSQL, and Caddy (C-5, C-6). Auth, roles, and buildings CRUD are not started.
 - 2026-11-15: Project picked. REQUIREMENTS.md and IMPLEMENTATION.md drafted. CI/CD pipeline requirements added. Updated against Sage's full course guidelines (user group, self-hosted runner, 60% coverage, /api/health, v1.0 tag).
