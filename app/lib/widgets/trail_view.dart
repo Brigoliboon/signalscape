@@ -3,18 +3,23 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/levels.dart';
+import '../core/preview.dart';
 import '../theme.dart';
 
 class TrailPoint {
-  const TrailPoint(this.x, this.y, this.level);
+  const TrailPoint(this.x, this.y, this.level, [this.progress = 0]);
 
   final double x;
   final double y;
   final SignalLevel level;
+
+  /// Steps walked when the point was taken, for drift correction.
+  final double progress;
 }
 
-/// The walk so far, one dot per Wi-Fi scan, coloured by signal level. The
-/// view re-fits itself as the trail grows; north is up.
+/// The walk so far, one dot per Wi-Fi scan, coloured by signal level, over the
+/// live preview heatmap when there is one. The view re-fits itself as the
+/// trail grows; north is up.
 class TrailView extends StatelessWidget {
   const TrailView({
     super.key,
@@ -22,9 +27,15 @@ class TrailView extends StatelessWidget {
     required this.x,
     required this.y,
     required this.heading,
+    this.preview,
+    this.thresholds = const Thresholds(),
   });
 
   final List<TrailPoint> points;
+
+  /// Heatmap drawn under the trail, in the same metre frame.
+  final PreviewGrid? preview;
+  final Thresholds thresholds;
   final double x;
   final double y;
 
@@ -38,7 +49,7 @@ class TrailView extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: CustomPaint(
-          painter: _TrailPainter(points, x, y, heading),
+          painter: _TrailPainter(points, x, y, heading, preview, thresholds),
           child: const SizedBox.expand(),
         ),
       ),
@@ -47,8 +58,17 @@ class TrailView extends StatelessWidget {
 }
 
 class _TrailPainter extends CustomPainter {
-  _TrailPainter(this.points, this.x, this.y, this.heading);
+  _TrailPainter(
+    this.points,
+    this.x,
+    this.y,
+    this.heading,
+    this.preview,
+    this.thresholds,
+  );
 
+  final PreviewGrid? preview;
+  final Thresholds thresholds;
   final List<TrailPoint> points;
   final double x;
   final double y;
@@ -65,6 +85,13 @@ class _TrailPainter extends CustomPainter {
       minY = math.min(minY, p.y);
       maxY = math.max(maxY, p.y);
     }
+    final g = preview;
+    if (g != null) {
+      minX = math.min(minX, g.x0);
+      maxX = math.max(maxX, g.x1);
+      minY = math.min(minY, g.y0);
+      maxY = math.max(maxY, g.y1);
+    }
     final span = math.max(20.0, math.max(maxX - minX, maxY - minY));
     const pad = 28.0;
     final scale = (math.min(size.width, size.height) - 2 * pad) / span;
@@ -74,6 +101,26 @@ class _TrailPainter extends CustomPainter {
       size.width / 2 + (px - cx) * scale,
       size.height / 2 - (py - cy) * scale,
     );
+
+    // The preview heatmap, under everything else.
+    if (g != null) {
+      final cell = g.cellM * scale;
+      final paint = Paint();
+      for (var row = 0; row < g.rows; row++) {
+        for (var col = 0; col < g.cols; col++) {
+          final v = g.at(col, row);
+          if (v == null) continue;
+          final tl = at(g.x0 + col * g.cellM, g.y0 + (row + 1) * g.cellM);
+          paint.color = levelColor(
+            levelFor(v.round(), thresholds),
+          ).withValues(alpha: 0.4);
+          canvas.drawRect(
+            Rect.fromLTWH(tl.dx, tl.dy, cell + 0.5, cell + 0.5),
+            paint,
+          );
+        }
+      }
+    }
 
     // A 5 m grid.
     final grid = Paint()

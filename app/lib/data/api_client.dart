@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../core/sync_engine.dart';
 import '../config.dart';
@@ -107,6 +108,16 @@ class ApiClient {
     return json['access_token'] as String;
   }
 
+  /// Creates a Surveyor account. Throws [ApiException] (409 if the email is
+  /// already registered).
+  Future<void> register(String name, String email, String password) async {
+    await _send(
+      'POST',
+      '/auth/register',
+      body: {'name': name.trim(), 'email': email.trim(), 'password': password},
+    );
+  }
+
   Future<User> me() async =>
       User.fromJson(await _send('GET', '/auth/me') as Map<String, dynamic>);
 
@@ -116,38 +127,151 @@ class ApiClient {
 
   // --- buildings and floors ---
 
-  Future<List<Building>> buildings() async {
-    final json =
-        await _send(
-              'GET',
-              '/buildings',
-              query: {'page_size': '100', 'sort': 'name'},
-            )
-            as Map<String, dynamic>;
-    return [
-      for (final b in json['items'] as List)
-        Building.fromJson(b as Map<String, dynamic>),
-    ];
-  }
+  /// One page of buildings. [sort] is `name`, `created_at`, or either with a
+  /// `-` in front for descending.
+  Future<BuildingPage> buildingPage({
+    String q = '',
+    int page = 1,
+    int pageSize = 20,
+    String sort = 'name',
+  }) async => BuildingPage.fromJson(
+    await _send(
+          'GET',
+          '/buildings',
+          query: {
+            if (q.trim().isNotEmpty) 'q': q.trim(),
+            'page': '$page',
+            'page_size': '$pageSize',
+            'sort': sort,
+          },
+        )
+        as Map<String, dynamic>,
+  );
 
   Future<Building> building(String id) async => Building.fromJson(
     await _send('GET', '/buildings/$id') as Map<String, dynamic>,
   );
 
-  Future<Building> createBuilding(String name) async => Building.fromJson(
-    await _send('POST', '/buildings', body: {'name': name})
+  Future<Building> createBuilding(
+    String name, {
+    String? address,
+    String? description,
+  }) async => Building.fromJson(
+    await _send(
+          'POST',
+          '/buildings',
+          body: {
+            'name': name,
+            'address': ?address,
+            'description': ?description,
+          },
+        )
         as Map<String, dynamic>,
   );
 
-  Future<Floor> createFloor(String buildingId, int level, String label) async =>
-      Floor.fromJson(
-        await _send(
-              'POST',
-              '/buildings/$buildingId/floors',
-              body: {'level': level, 'label': label},
-            )
-            as Map<String, dynamic>,
+  /// Sends all three fields, so an empty address or description is cleared.
+  Future<Building> updateBuilding(
+    String id, {
+    required String name,
+    String? address,
+    String? description,
+  }) async => Building.fromJson(
+    await _send(
+          'PATCH',
+          '/buildings/$id',
+          body: {'name': name, 'address': address, 'description': description},
+        )
+        as Map<String, dynamic>,
+  );
+
+  Future<Floor> createFloor(
+    String buildingId,
+    int level,
+    String label, {
+    double? heightM,
+    double? widthM,
+    double? lengthM,
+  }) async => Floor.fromJson(
+    await _send(
+          'POST',
+          '/buildings/$buildingId/floors',
+          body: {
+            'level': level,
+            'label': label,
+            'height_m': ?heightM,
+            'width_m': ?widthM,
+            'length_m': ?lengthM,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Sends every field, so an emptied width or length is cleared.
+  Future<Floor> updateFloor(
+    String id, {
+    required int level,
+    required String label,
+    required double heightM,
+    double? widthM,
+    double? lengthM,
+  }) async => Floor.fromJson(
+    await _send(
+          'PATCH',
+          '/floors/$id',
+          body: {
+            'level': level,
+            'label': label,
+            'height_m': heightM,
+            'width_m': widthM,
+            'length_m': lengthM,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Uploads or replaces a floor plan. The API accepts PNG or JPEG up to 5 MB.
+  Future<Floor> uploadPlan(
+    String floorId,
+    List<int> bytes,
+    String mediaType,
+  ) async {
+    final ext = mediaType == 'image/png' ? 'png' : 'jpg';
+    final request = http.MultipartRequest('PUT', _uri('/floors/$floorId/plan'))
+      ..headers.addAll(_headers)
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: 'plan.$ext',
+          contentType: MediaType.parse(mediaType),
+        ),
       );
+    final http.Response response;
+    try {
+      response = await http.Response.fromStream(
+        await _http.send(request).timeout(const Duration(seconds: 60)),
+      );
+    } on TimeoutException {
+      throw ApiException(0, 'The upload took too long. Try again.');
+    } on SocketException {
+      throw ApiException(0, 'No connection to the server.');
+    } on http.ClientException {
+      throw ApiException(0, 'No connection to the server.');
+    }
+    if (response.statusCode == 401 && token != null) onUnauthorized?.call();
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return Floor.fromJson(
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>,
+      );
+    }
+    throw ApiException(response.statusCode, _detail(response));
+  }
+
+  /// Where a floor plan can be fetched, and the headers to fetch it with.
+  Uri planUri(String planUrl) => Uri.parse('$baseUrl$planUrl');
+  Map<String, String> get authHeaders => {
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
 
   // --- surveys ---
 
@@ -157,6 +281,7 @@ class ApiClient {
     required double originLng,
     required double originAccuracyM,
     String? deviceModel,
+    bool hasBarometer = false,
   }) async {
     final json =
         await _send(
@@ -168,6 +293,7 @@ class ApiClient {
                 'origin_lng': originLng,
                 'origin_accuracy_m': originAccuracyM,
                 'device_model': ?deviceModel,
+                'has_barometer': hasBarometer,
               },
             )
             as Map<String, dynamic>;
@@ -181,6 +307,19 @@ class ApiClient {
   Future<void> process(String surveyId) async {
     await _send('POST', '/surveys/$surveyId/process');
   }
+
+  /// Live preview heatmap: processes what the API has so far for one floor,
+  /// saves nothing, and returns the strongest-signal grids.
+  Future<Map<String, dynamic>> processPreview(
+    String surveyId,
+    String floorId,
+  ) async =>
+      await _send(
+            'POST',
+            '/surveys/$surveyId/process',
+            query: {'preview': 'true', 'floor_id': floorId},
+          )
+          as Map<String, dynamic>;
 
   Future<void> postBatch(PendingBatch batch) async {
     final key = batch.kind == SyncKind.readings ? 'readings' : 'checkpoints';

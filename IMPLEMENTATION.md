@@ -6,7 +6,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
 - `app/`: Flutter Android app.
 
-**Status (Nov 16, 2026):** M3 and M5 are done. M6's backend is mostly done (3D view page, filters, markers, GeoJSON export); its summary, 2D map, history and admin screens are open. M4 app work is in progress: the first app POC (sign in, survey capture, sync, 3D view in a WebView) is in review, and it still needs a test on a real phone. Week dates are set once week 1's start is confirmed.
+**Status (Nov 16, 2026):** M3 and M5 are done. M6's backend is mostly done (3D view page, filters, markers, GeoJSON export); its summary, 2D map, history and admin screens are open. M4 is code-complete and CI-green in the app (register and consent, building and floor management with plans, barometer floors, drift-corrected checkpoints, live preview heatmap, resume), but nothing in M4 has been tested on a real phone yet, so FR-7, FR-8, FR-9, FR-10 and FR-11a still need that test. Week dates are set once week 1's start is confirmed.
 
 ---
 
@@ -45,17 +45,17 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [x] Branch protection on `main` with required checks (CD-5)
 
 ## M4, Week 4: Survey capture in the app (MVP part 2, MVP due end of week 4)
-- [ ] Flutter project set up in `app/`
-- [ ] CI for the app: `flutter analyze`, format check, `flutter test`, release APK build (CI-7 to CI-9)
-- [ ] Sign in, register and consent screens wired to the API
-- [ ] Building list, details and edit screens
-- [ ] Wi-Fi scanning: SSID, BSSID, RSSI, frequency, timestamp (FR-7)
-- [ ] Step detection and heading for position (FR-8)
-- [ ] Barometer floor detection, with manual floor fallback (FR-9)
-- [ ] Checkpoints to correct drift (FR-10)
-- [ ] Offline storage and upload to the API (FR-11)
+- [x] Flutter project set up in `app/`
+- [x] CI for the app: `flutter analyze`, format check, `flutter test`, release APK build (CI-7 to CI-9)
+- [x] Sign in, register and consent screens wired to the API
+- [x] Building list, details and edit screens
+- [x] Wi-Fi scanning: SSID, BSSID, RSSI, frequency, timestamp (FR-7) (code done, CI green, still to be tested on a real phone)
+- [x] Step detection and heading for position (FR-8) (code done, CI green, still to be tested on a real phone)
+- [x] Barometer floor detection, with manual floor fallback (FR-9) (code done, CI green, still to be tested on a real phone)
+- [x] Checkpoints to correct drift (FR-10) (code done, CI green, still to be tested on a real phone)
+- [x] Offline storage and upload to the API (FR-11)
 - [x] Survey readings upload endpoint (FR-12)
-- [ ] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a)
+- [x] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a) (code done, CI green, still to be tested on a real phone)
 
 ## M5, Week 5: Processing (feature-complete part 1)
 - [x] Coverage grid per floor and per network by interpolation (FR-13)
@@ -94,6 +94,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-16 02:36: M4 finished in code (branch `feat/m4-complete`). **Register** screen on `POST /auth/register` (linked from sign in, signs in afterwards) and a full **consent** screen with the privacy notice from REQUIREMENTS section 9 (FR-22, RA 10173). **Buildings**: the home screen is now a building list with search, sort and paging, a details screen with floors, add and edit for buildings and floors (floor height, optional size), and floor plan upload from the photo picker (PNG or JPEG, up to 5 MB, checked on the phone first); Viewers get no create or edit buttons (and the API shows them no buildings). **Barometer (FR-9)**: calibrates at the start on the chosen floor, turns the pressure change into floors with each floor's height (3.3 m if a floor has none), needs 25% of a floor more clearly plus 3 s on the new floor before it reports a change, suggests the floor (or switches by itself if Auto-switch is on), and a manual pick always wins and re-bases; no barometer means manual floors. **Preview heatmap (FR-11a)**: about every 60 s while online it calls `POST /process?preview=true` for the current floor and draws the strongest-signal grid under the trail; offline or an error keeps the last grid, marked old. **Checkpoints (FR-10)**: a checkpoint with a good GPS fix now spreads its error back over the readings since the last good fix, in proportion to steps walked, before they are uploaded; readings wait on the phone for that (at most 4 minutes, then they go up uncorrected), so the live preview lags by up to that long. A tap checkpoint without a good fix only marks the place, so correcting from a position tapped on the floor plan (the design's other checkpoint kind) is not built. **Resume**: the app remembers an unfinished survey, and on the next launch offers Resume, End survey (upload and process) or Later. Tests: 120 new unit and widget tests (175 in total), including SQLite tests on the host. Not yet done: real-phone checks of FR-7, FR-8, FR-9, FR-10 and FR-11a (the barometer thresholds and the drift spread may need tuning), delete for buildings and floors in the app.
 - 2026-11-16 01:30: App POC open as a PR (branch `feat/app-poc`). Sign in (token in secure storage, base URL from `--dart-define=API_BASE_URL`), a minimal privacy consent screen for Surveyors (Admins are not asked by the API), a building and floor pick with quick create, then survey capture: GPS start fix of 10 m or better, Wi-Fi scans kept within Android's 4 scans per 2 minutes, steps and compass heading for dead reckoning, a checkpoint that re-anchors to a good GPS fix, pause, end, sqflite queue with batched retrying sync (5 s, 10 s, 30 s, 2 min), a live trail colored good/fair/dead, and the 3D page in a WebView after processing. Dark "signal scanner" theme in `app/lib/theme.dart`. Unit tests for the step, heading and position math, scan throttle, sync queue, signal levels, API client and sign in (55 tests). Ticked: wireframes (M2) and Flutter packages (M2). Left unticked on purpose until tried on a real phone: Wi-Fi scanning (FR-7), step detection and heading (FR-8), checkpoints (FR-10), offline storage and upload (FR-11) and the live trail (FR-11a; the 60 s preview heatmap is not built). Also still open: register screen, building screens, barometer floor detection (FR-9, the floor is picked by hand).
 - 2026-11-16 00:45: 3D coverage page open as a PR (branch `feat/3d-view`). Static Three.js page at `/api/viewer/`, served by the API, for the app's WebView. Stacked floors with a good/fair/dead heatmap using the surveyor's thresholds, a legend with text labels, estimated access point markers, highlighted dead zones (FR-18), floor toggles and a network filter (FR-17), tap to inspect, one-finger orbit and two-finger zoom on a 360×800 phone. JWT goes in the URL fragment and is kept in memory only; the page is public and holds no data. Three.js r0.187.0 vendored, no build step. `/summary` now returns `floor_height_m` per floor. Ticked FR-16 (page), FR-17 and FR-18. Still open: opening the page from the Flutter app in a WebView, and the 2D map (FR-16a).
 - 2026-11-16 00:35: [PR #11](https://github.com/Brigoliboon/signalscape/pull/11) open: survey processing (migration 0005, numpy). Cleaning (range check, median merge of repeat scans, MAD outliers), IDW coverage on a 1 m grid with a 10 m radius per floor and per network, weighted-centroid access point estimates, signal levels from the surveyor's thresholds. `POST /surveys/{id}/process` (full run on a completed survey, or `preview=true` for the live heatmap), plus `coverage`, `access-points`, `summary`, `networks`, `geojson` (floors as layers) and `export.csv`. 273 tests, 100% coverage. Ticked FR-13 to FR-15, the map endpoints, the math tests and the GeoJSON export. Still open on the app side: FR-11a live heatmap, FR-16 and FR-16a views, FR-18 markers and FR-19 summary screen (their API is done), and the CSV export button.

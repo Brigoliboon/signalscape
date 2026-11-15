@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/session.dart';
 import '../theme.dart';
+import 'privacy_notice.dart';
 
 /// Privacy consent (FR-22), shown once to Surveyors before their first survey.
 class ConsentScreen extends StatefulWidget {
@@ -41,31 +42,24 @@ class _ConsentScreenState extends State<ConsentScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            Text('HOW WE USE YOUR DATA', style: mono(size: 15)),
+            Text('PRIVACY NOTICE', style: mono(size: 15)),
+            const SizedBox(height: 4),
+            const Text(
+              privacyNoticeVersion,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
             const SizedBox(height: 12),
-            const _InfoCard(
-              title: 'What we collect',
-              body:
-                  'Wi-Fi signal strength (RSSI), network names (SSID/BSSID), '
-                  'step count, and your position inside the building you survey.',
-            ),
-            const _InfoCard(
-              title: "What we don't collect",
-              body:
-                  'No GPS outside the building, no browsing data, no contacts.',
-            ),
-            const _InfoCard(
-              title: 'Your rights',
-              body:
-                  'Under the Data Privacy Act of 2012 (RA 10173) you can view, '
-                  'export, or delete your data anytime in Settings.',
-            ),
+            for (final section in privacyNotice)
+              _InfoCard(title: section.title, body: section.body),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               value: _agreed,
               onChanged: (v) => setState(() => _agreed = v ?? false),
-              title: const Text('I have read and agree to the Privacy Notice.'),
+              title: const Text(
+                'I have read the privacy notice and I agree to the use of my '
+                'data as described.',
+              ),
             ),
             if (_error != null)
               Text(

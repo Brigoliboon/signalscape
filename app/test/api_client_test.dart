@@ -39,9 +39,12 @@ void main() {
     String? auth;
     final api = clientFor((req) async {
       auth = req.headers['Authorization'];
-      return http.Response(jsonEncode({'items': []}), 200);
+      return http.Response(
+        jsonEncode({'items': [], 'total': 0, 'page': 1, 'page_size': 20}),
+        200,
+      );
     })..token = 'tok';
-    await api.buildings();
+    await api.buildingPage();
     expect(auth, 'Bearer tok');
   });
 
