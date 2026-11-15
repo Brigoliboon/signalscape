@@ -330,6 +330,20 @@ class ApiClient {
     );
   }
 
+  /// Coverage cells and access points of a processed survey as GeoJSON, one
+  /// feature per cell or point, each with its `floor_level` (FR-16a). The API's
+  /// default is cells and access points.
+  Future<Map<String, dynamic>> surveyGeoJson(String surveyId) async =>
+      await _send('GET', '/surveys/$surveyId/geojson') as Map<String, dynamic>;
+
+  /// The walk, per floor, with its start and end.
+  Future<Map<String, dynamic>> surveyTrail(String surveyId) async =>
+      await _send('GET', '/surveys/$surveyId/trail') as Map<String, dynamic>;
+
+  /// Floor names and counts of a processed survey; 409 until it is processed.
+  Future<Map<String, dynamic>> surveySummary(String surveyId) async =>
+      await _send('GET', '/surveys/$surveyId/summary') as Map<String, dynamic>;
+
   /// Address of the 3D page. The token is in the fragment, which is never sent
   /// to a server, so it stays out of access logs.
   Uri viewerUri(String surveyId) => Uri.parse(

@@ -234,7 +234,7 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 | GET | `/surveys/{id}/export.csv` | all readings as CSV (FR-21) |
 | GET | `/surveys/{id}/geojson` | GeoJSON FeatureCollection; params `floor_level`, `bssid`, `include` (`cells`, `access_points`, `readings`) |
 
-**GeoJSON output:** coverage cells are `Polygon` features (properties `rssi_dbm`, `level` good/fair/dead, `floor_level`, `bssid`); access points and readings are `Point` features (`ssid`, `bssid`, `floor_level`, `rssi_dbm`). Map clients (Leaflet or MapLibre) show one layer per `floor_level`. Three.js uses the same data, projected back to local meters around the survey origin, with height `floor_level × floor height`.
+**GeoJSON output:** coverage cells are `Polygon` features (properties `rssi_dbm`, `level` good/fair/dead, `floor_level`, `bssid`); access points and readings are `Point` features (`ssid`, `bssid`, `floor_level`, `rssi_dbm`). Map clients show one layer per `floor_level`. The app's 2D map (FR-16a) uses `flutter_map` with Mapbox raster style tiles (`dark-v11`, token from `--dart-define=MAPBOX_TOKEN`, OpenStreetMap tiles and credit when there is no token). It reads `/summary` (floor names, thresholds, and a 409 when the survey is not processed yet), `/geojson` (cells and access points) and `/trail`, draws one floor at a time (cells coloured by `level`, access point markers, the walk with start and end), and fits the camera to that floor's data. It can start processing for Surveyors and Admins when the survey has no results yet. Three.js uses the same data, projected back to local meters around the survey origin, with height `floor_level × floor height`.
 
 ## 5. Processing math
 

@@ -270,7 +270,11 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
               label: 'View 3D',
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => ViewerScreen(api: _api, surveyId: a.surveyId),
+                  builder: (_) => ViewerScreen(
+                    api: _api,
+                    surveyId: a.surveyId,
+                    canProcess: widget.session.user?.role != 'viewer',
+                  ),
                 ),
               ),
             ),

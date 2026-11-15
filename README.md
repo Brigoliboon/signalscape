@@ -88,6 +88,7 @@ Set these in the repo under Settings → Secrets and variables → Actions:
 | `JWT_SECRET` | Signing key for API tokens |
 | `SITE_ADDRESS` | Public hostname Caddy serves (`signalscape.boonbrigoli.site`) |
 | `API_BASE_URL` | Public URL for the smoke test (`https://signalscape.boonbrigoli.site`) |
+| `MAPBOX_TOKEN` | Optional. Public Mapbox token baked into the release APK for the 2D map (empty means OpenStreetMap tiles) |
 
 ### Self-hosted runner
 CD deploys on a runner installed on the server (`runs-on: self-hosted`). The runner user must be able to run Docker. Add it from the GitHub repo: Settings → Actions → Runners → New self-hosted runner, then follow the Linux steps. The runner on the course VM is `signalscape-vm` (labels `self-hosted, Linux, X64, signalscape`).
