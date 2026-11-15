@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import get_settings  # noqa: E402
+import app.models  # noqa: E402,F401  (registers models on Base.metadata)
 from app.db.base import Base  # noqa: E402
 
 config = context.config
