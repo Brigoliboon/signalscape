@@ -3,6 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../data/api_client.dart';
 import '../theme.dart';
+import '../widgets/view_switch.dart';
 import 'map_screen.dart';
 
 /// The Three.js coverage page served by the API (FR-16), in a WebView.
@@ -59,10 +60,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Coverage in 3D'),
+        title: const Text('Coverage'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pushReplacement(
+          ViewSwitch(
+            is3d: true,
+            onSwitch: () => Navigator.of(context).pushReplacement(
               MaterialPageRoute<void>(
                 builder: (_) => MapScreen(
                   api: widget.api,
@@ -81,7 +83,6 @@ class _ViewerScreenState extends State<ViewerScreen> {
                 ),
               ),
             ),
-            child: const Text('2D map'),
           ),
         ],
       ),

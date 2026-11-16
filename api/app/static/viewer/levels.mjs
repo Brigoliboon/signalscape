@@ -168,3 +168,18 @@ export function parseFragment(hash) {
   if (!isUuid(surveyId) || !token) return null;
   return { surveyId, token };
 }
+
+/** Screens at most this wide (phones) get the legend collapsed. */
+export const NARROW_MAX_PX = 600;
+
+export const LEGEND_STORAGE_KEY = 'signalscape.legend';
+
+/**
+ * Whether the legend starts open: what the person chose earlier in this session
+ * ('1' open, '0' collapsed), else open on wide screens and collapsed on narrow ones.
+ */
+export function legendStartsOpen(stored, widthPx) {
+  if (stored === '1') return true;
+  if (stored === '0') return false;
+  return widthPx > NARROW_MAX_PX;
+}
