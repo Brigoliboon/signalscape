@@ -9,12 +9,14 @@ import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/models.dart';
 import '../data/session.dart';
+import '../data/user_models.dart';
 import '../survey/finish.dart';
 import '../theme.dart';
 import 'building_detail_screen.dart';
 import 'building_form_screen.dart';
 import 'floor_form_screen.dart';
 import 'survey_screen.dart';
+import 'users_screen.dart';
 import 'viewer_screen.dart';
 
 /// How the building list can be ordered. [value] is the API's `sort`.
@@ -329,6 +331,23 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              if (canManageUsers(user.role)) ...[
+                Card(
+                  child: ListTile(
+                    key: const ValueKey('open-users'),
+                    leading: const Icon(Icons.group_outlined),
+                    title: const Text('Manage users'),
+                    subtitle: const Text('Roles, access and accounts'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => UsersScreen(session: widget.session),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (_unfinished != null) ...[
                 _UnfinishedCard(
                   survey: _unfinished!,

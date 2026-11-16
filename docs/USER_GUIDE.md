@@ -46,6 +46,19 @@ The **Buildings** screen lists your buildings. You can:
 
 An empty list says "No buildings yet. Add the first one to start surveying." (Viewer accounts see "No buildings here. Viewers see surveys that are shared with them, not the building list.")
 
+## 3a. Managing users (Admins only)
+
+If your role is **Admin**, the **Buildings** screen has a **Manage users** card under the "SIGNED IN AS" line. Surveyors and Viewers do not see it, and the server refuses user management to them anyway.
+
+- The **Users** screen lists every account with its role and, if the account is switched off, "Inactive". The line under the search box says how many users match. Search by name or email, pick a role chip (**All roles**, **Admin**, **Surveyor**, **Viewer**), filter by **Any status / Active / Inactive**, and sort by **Newest first**, **Name A–Z** or **Email A–Z**. **Load more** shows the next page and pull down to refresh.
+- Tap a user to open their details: email, whether the account is active, when it was created, and (for Surveyors) whether privacy consent was given.
+- **Role:** tap another role to change it. Making an Admin into something else asks first.
+- **Deactivate account** asks first. A deactivated user cannot sign in, but their buildings and surveys stay. **Reactivate account** turns it back on without asking.
+- **Delete user** asks first and says what goes: the account, its buildings, floors, floor plans and surveys. This cannot be undone; deactivate instead to keep the data.
+- The server never lets the last active Admin be demoted, deactivated or deleted. If you try, the screen shows its message (for example "Cannot delete the last active admin") and nothing changes.
+- Your own row says "(you)". For your own account the role chips are off and there is no Deactivate or Delete: use **Profile and settings** for your name, password or to delete your account.
+- Offline, a change says "You're offline. Nothing was changed." and the list is loaded again when you tap **Try again**.
+
 ## 4. Floors and floor plans
 
 On the building page tap **Add floor**:
