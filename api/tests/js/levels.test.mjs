@@ -3,12 +3,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  CONFIDENCE_NOTE,
   LEVEL_COLORS,
+  MIN_CONFIDENCE_SHARE,
   cellAt,
   cellLevels,
   cellPixels,
+  confidenceAlpha,
+  confidenceOf,
   countLevels,
   dataExtent,
+  fadedColor,
   floorElevation,
   formatDbm,
   hexToRgb,
@@ -17,6 +22,7 @@ import {
   levelFor,
   networkLabel,
   parseFragment,
+  smoothCellPixels,
   toLocal,
 } from '../../app/static/viewer/levels.mjs';
 
@@ -113,4 +119,52 @@ test('dataExtent is the block of cells that have data', () => {
   assert.deepEqual(dataExtent([-50], 1), { col0: 0, col1: 0, row0: 0, row1: 0 });
   assert.equal(dataExtent([null, undefined, null, null], 2), null);
   assert.equal(dataExtent([], 1), null);
+});
+
+test('confidenceOf treats a missing value as full confidence and clamps', () => {
+  assert.equal(confidenceOf(undefined), 1);
+  assert.equal(confidenceOf(null), 1);
+  assert.equal(confidenceOf(Number.NaN), 1);
+  assert.equal(confidenceOf('0.2'), 1);
+  assert.equal(confidenceOf(0.4), 0.4);
+  assert.equal(confidenceOf(-1), 0);
+  assert.equal(confidenceOf(7), 1);
+});
+
+test('confidenceAlpha fades from full opacity to 30% of it', () => {
+  assert.equal(confidenceAlpha(1), 217);
+  assert.equal(confidenceAlpha(undefined), 217);
+  assert.equal(confidenceAlpha(0), Math.round(217 * MIN_CONFIDENCE_SHARE));
+  assert.ok(confidenceAlpha(0.5) > confidenceAlpha(0.1));
+  assert.equal(confidenceAlpha(1, 100), 100);
+});
+
+test('fadedColor is the level colour at the lowest opacity', () => {
+  assert.equal(fadedColor('#f2a900'), 'rgba(242, 169, 0, 0.3)');
+  assert.equal(CONFIDENCE_NOTE, 'Faded = few readings');
+});
+
+test('smoothCellPixels fades by confidence and keeps empty cells transparent', () => {
+  // 3 x 1: good (sure), empty, dead (unsure)
+  const px = smoothCellPixels(['good', null, 'dead'], [1, null, 0], 3, 1);
+  assert.equal(px.length, 12);
+  assert.deepEqual([...px.slice(0, 4)], [...hexToRgb(LEVEL_COLORS.good), 217]);
+  assert.deepEqual([...px.slice(8, 12)], [...hexToRgb(LEVEL_COLORS.dead), confidenceAlpha(0)]);
+  // the empty cell has no opacity, but the average colour of its neighbours
+  const [good, dead] = [hexToRgb(LEVEL_COLORS.good), hexToRgb(LEVEL_COLORS.dead)];
+  assert.equal(px[7], 0);
+  assert.deepEqual(
+    [...px.slice(4, 7)],
+    good.map((v, i) => Math.round((v + dead[i]) / 2)),
+  );
+});
+
+test('smoothCellPixels without confidence is fully confident, and far empty cells stay black', () => {
+  const px = smoothCellPixels(['fair', null, null, null], null, 4, 1);
+  assert.equal(px[3], 217);
+  assert.deepEqual([...px.slice(8, 12)], [0, 0, 0, 0]);
+  const rows = smoothCellPixels([null, null, 'good', null], undefined, 2, 2);
+  // 2 x 2: the good cell is at col 0, row 1; every other cell touches it
+  assert.equal(rows[2 * 4 + 3], 217);
+  assert.deepEqual([...rows.slice(0, 3)], hexToRgb(LEVEL_COLORS.good));
 });

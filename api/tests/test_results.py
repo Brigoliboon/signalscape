@@ -353,6 +353,66 @@ def test_coverage_strongest_and_per_network(scene: Scene) -> None:
     assert only_b["dead_pct"] > 0
 
 
+def test_coverage_has_confidence(scene: Scene) -> None:
+    scene.processed()
+    body = scene.get(f"coverage?floor_id={scene.floor.id}").json()
+    confidence = body["confidence"]
+    assert len(confidence) == len(body["values"])
+    # cell 0 sits on a reading with 3 positions within 5 m: min(1, 3/4) * 1
+    assert confidence[0] == 0.75
+    # cell 2 sits on a reading with 4 positions within 5 m: full confidence
+    assert confidence[2] == 1.0
+    # cell 1 is 1 m from the nearest reading: 3/4 * (1 - 1/5) (the 4th position,
+    # about 5 m away, is on the radius edge, so it is not counted on)
+    assert confidence[1] in (0.6, 0.8)
+    assert all(c is not None and 0 <= c <= 1 for c in confidence)
+    only_b = scene.get(f"coverage?floor_id={scene.floor.id}&bssid={B}").json()
+    assert len(only_b["confidence"]) == len(only_b["values"])
+
+
+def test_preview_has_confidence(scene: Scene) -> None:
+    body = scene.process("?preview=true").json()
+    grid = body["grids"][0]
+    assert len(grid["confidence"]) == len(grid["values"])
+    assert grid["confidence"][0] == 0.75
+
+
+def test_geojson_cells_carry_confidence(scene: Scene) -> None:
+    scene.processed()
+    cells = features(scene.get("geojson?floor_level=0&include=cells"))
+    by_value = {c["properties"]["rssi_dbm"]: c["properties"] for c in cells}
+    assert by_value[-50.0]["confidence"] == 0.75
+    assert all(0 <= c["properties"]["confidence"] <= 1 for c in cells)
+
+
+def test_grids_stored_before_confidence_read_as_full(scene: Scene) -> None:
+    scene.processed()
+    grids = list(
+        scene.db.scalars(
+            select(CoverageGrid).where(CoverageGrid.survey_id == scene.survey.id)
+        )
+    )
+    for grid in grids:
+        grid.confidence = None
+    short = grids[0]
+    scene.db.commit()
+    body = scene.get(f"coverage?floor_id={short.floor_id}").json()
+    assert body["confidence"] is None
+    cells = features(scene.get("geojson?include=cells"))
+    assert cells
+    assert {c["properties"]["confidence"] for c in cells} == {1.0}
+    # a stored list shorter than the grid also reads as full for the rest
+    short.confidence = [0.5]
+    scene.db.commit()
+    again = features(scene.get(f"geojson?include=cells&floor_level={0}"))
+    assert {c["properties"]["confidence"] for c in again} <= {0.5, 1.0}
+    # processing again fills it in
+    assert scene.process().status_code == 200
+    scene.db.expire_all()
+    refreshed = scene.get(f"coverage?floor_id={scene.floor.id}").json()
+    assert refreshed["confidence"] is not None
+
+
 def test_coverage_errors(scene: Scene) -> None:
     scene.processed()
     assert scene.get("coverage").status_code == 422

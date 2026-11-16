@@ -140,6 +140,7 @@ Indexes: `(survey_id, floor_id)`, `(survey_id, bssid)`, unique `(survey_id, clie
 | origin_lat, origin_lng | double precision | south-west corner of the grid |
 | cols, rows | smallint | |
 | values | jsonb | row-major array of dBm, `null` where there's no data |
+| confidence | jsonb, null | same layout as `values`, 0 to 1 (see Coverage confidence); `null` on grids stored before migration 0006, which readers treat as 1 until the survey is processed again |
 | good_pct, fair_pct, dead_pct | real | share of covered cells per level |
 | good_threshold_dbm, dead_threshold_dbm | smallint | thresholds the percentages and cell levels were computed with (the surveyor's at processing time) |
 | raw_reading_count, cleaned_reading_count | integer | readings stored vs. kept after cleaning, for the summary |
@@ -240,7 +241,15 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 
 **Data cleaning (first step of processing):** drop readings outside -100 to -20 dBm or with a bad BSSID; merge repeat scans of the same BSSID within 1 m and 10 s into one reading using the median RSSI; drop outliers more than 2.5 MAD (median absolute deviation) from their 3 m neighborhood median. Cleaned counts are reported in the summary.
 
-**Coverage (FR-13):** inverse distance weighting per floor. For each grid cell, average the readings within a 10 m radius, weighted by `1 / d²`; cells with no reading in range stay `null`. For the strongest-signal grid, take each position's maximum RSSI across networks first. RSSI is averaged in dBm, which is fine for a coverage view. IDW is simple, fast enough for NFR-1, and easy to test; kriging can be compared in the paper.
+**Coverage (FR-13):** inverse distance weighting per floor. For each grid cell, average the readings within a 5 m radius (`IDW_RADIUS_M`), weighted by `1 / d²`; cells with no reading in range stay `null`. For the strongest-signal grid, take each position's maximum RSSI across networks first. RSSI is averaged in dBm, which is fine for a coverage view. IDW is simple, fast enough for NFR-1, and easy to test; kriging can be compared in the paper.
+
+**Why 5 m, not 10 m:** a first test on a phone gave a heatmap that looked vague. Android allows about 4 Wi-Fi scans per 2 minutes, so readings are far apart, and a 10 m radius painted guessed values over areas nobody walked. At 5 m a reading says something about the few steps around it and nothing about the rest, and a cell with no reading within 5 m stays `null` (no data, not drawn). The radius is the constant `IDW_RADIUS_M` in `processing.py`.
+
+**Coverage confidence:** each cell with data also gets a confidence from 0 to 1, so the maps can fade cells that rest on little evidence:
+
+`confidence = min(1, n / 4) * (1 - d_nearest / radius)`
+
+`n` is the number of cleaned readings within the radius of the cell center and `d_nearest` the distance to the closest one. Four or more readings with one on the cell center give 1; a single reading gives at most 0.25; a lone reading at the edge of the radius gives 0. Values are rounded to two decimals and stored next to `values` (`coverage_grids.confidence`), and a cell with no data has `null`. It is returned as `confidence` by `/coverage` and the preview, and as `confidence` in the properties of the `/geojson` cells. Grids stored before this existed have no confidence and are drawn as if it were 1; `POST /process` fills it in. The 3D page and the app draw a cell's opacity as 30% to 100% of normal by confidence, and the legend says "faded = few readings".
 
 **Levels (FR-15):** a cell is good at or above the user's `good_threshold_dbm` (-67), dead below `dead_threshold_dbm` (-80), and fair in between.
 

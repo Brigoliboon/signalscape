@@ -347,8 +347,13 @@ class _MapScreenState extends State<MapScreen> {
                       points: c.ring,
                       // Strong enough to read on bright imagery, with a faint
                       // edge so neighbouring cells stay apart.
-                      color: levelColor(c.level).withValues(alpha: 0.7),
-                      borderColor: Colors.black.withValues(alpha: 0.3),
+                      // Faded where few readings back the cell.
+                      color: levelColor(c.level).withValues(
+                        alpha: confidenceAlpha(c.confidence, full: 0.75),
+                      ),
+                      borderColor: Colors.black.withValues(
+                        alpha: confidenceAlpha(c.confidence, full: 0.3),
+                      ),
                       borderStrokeWidth: 0.6,
                     ),
                 ],
@@ -626,6 +631,25 @@ class _MapScreenState extends State<MapScreen> {
                 Text(text(l), style: const TextStyle(fontSize: 12)),
               ],
             ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                color: levelColor(
+                  SignalLevel.fair,
+                ).withValues(alpha: confidenceAlpha(0, full: 0.75)),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Faded = few readings',
+                key: ValueKey('legend-faded'),
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
         ],
       ),
     );
