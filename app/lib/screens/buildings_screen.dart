@@ -14,9 +14,9 @@ import '../theme.dart';
 import 'building_detail_screen.dart';
 import 'building_form_screen.dart';
 import 'floor_form_screen.dart';
-import 'profile_screen.dart';
 import 'survey_screen.dart';
 import 'viewer_screen.dart';
+import 'profile_screen.dart';
 
 /// How the building list can be ordered. [value] is the API's `sort`.
 enum BuildingSort {
