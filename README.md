@@ -73,6 +73,7 @@ signalscape/
 ├── .github/workflows/    # CI and CD
 ├── REQUIREMENTS.md       # What to build
 ├── IMPLEMENTATION.md     # Build order and progress
+├── CHANGELOG.md          # Release notes
 ├── AGENTS.md             # Workflow rules for contributors and agents
 └── README.md
 ```
@@ -119,7 +120,7 @@ cd app && flutter test
 ## CI/CD
 - **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It covers lint, tests with a Postgres container, the OpenAPI check, the Docker build, a dependency scan, `flutter analyze`, `flutter test` and the APK build. Backend coverage below 60% fails the build. API jobs run only when `api/` or a workflow changes, and the Flutter job only when `app/` or `ci.yml` changes. The secret and dependency scan always runs, and tags and manual runs run everything.
 - **CD** (`.github/workflows/cd.yml`) runs after CI succeeds on `main`. It pushes the API image to GitHub Container Registry, then a self-hosted runner pulls the image, restarts Docker Compose (with Caddy), runs migrations, and smoke tests `/api/health` and `/api/docs` through the public HTTPS URL.
-- The final release is tagged `v1.0`.
+- The final release is tagged `v1.0`. See [CHANGELOG.md](CHANGELOG.md) for what is in each release.
 
 ### GitHub secrets (for CD)
 Set these in the repo under Settings → Secrets and variables → Actions:
@@ -152,6 +153,7 @@ All in `docs/`:
 | [RUNBOOK.md](docs/RUNBOOK.md) | Logs, restarts, backups, rollback, key rotation, site-down checklist |
 | [API_GUIDE.md](docs/API_GUIDE.md) | Quick start with `curl` examples (full reference at `/api/docs`) |
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | Surveyor guide for the app |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes, starting with 1.0.0 |
 
 ## Contributing
 Read `AGENTS.md` first. In short, work through `IMPLEMENTATION.md` in order, use one branch per item, add tests with every change, open a pull request with passing CI, and tick the checkbox in the same pull request.
