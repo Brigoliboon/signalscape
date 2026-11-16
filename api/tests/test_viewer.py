@@ -10,8 +10,11 @@ from fastapi.testclient import TestClient
 
 from app.api.viewer import SECURITY_HEADERS, VIEWER_DIR
 
-JS_TESTS = Path(__file__).parent / "js" / "levels.test.mjs"
-OUR_FILES = ["index.html", "viewer.mjs", "levels.mjs", "viewer.css"]
+JS_TESTS = [
+    Path(__file__).parent / "js" / "levels.test.mjs",
+    Path(__file__).parent / "js" / "heat.test.mjs",
+]
+OUR_FILES = ["index.html", "viewer.mjs", "levels.mjs", "heat.mjs", "viewer.css"]
 VENDORED = ["three.module.js", "three.core.js", "OrbitControls.js", "LICENSE"]
 
 
@@ -33,7 +36,9 @@ def test_missing_slash_redirects_to_the_page(client: TestClient) -> None:
     assert response.headers["location"].endswith("/api/viewer/")
 
 
-@pytest.mark.parametrize("path", ["", "viewer.mjs", "levels.mjs", "viewer.css"])
+@pytest.mark.parametrize(
+    "path", ["", "viewer.mjs", "levels.mjs", "heat.mjs", "viewer.css"]
+)
 def test_security_headers(client: TestClient, path: str) -> None:
     response = client.get(f"/api/viewer/{path}")
     assert response.status_code == 200
@@ -50,7 +55,7 @@ def test_security_headers(client: TestClient, path: str) -> None:
 
 
 def test_scripts_have_a_javascript_content_type(client: TestClient) -> None:
-    for name in ("viewer.mjs", "levels.mjs", "vendor/three.module.js"):
+    for name in ("viewer.mjs", "levels.mjs", "heat.mjs", "vendor/three.module.js"):
         response = client.get(f"/api/viewer/{name}")
         assert response.status_code == 200, name
         assert response.headers["content-type"].startswith(
@@ -124,7 +129,7 @@ NODE = shutil.which("node")
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
 def test_viewer_scripts_have_valid_syntax() -> None:
-    for name in ("viewer.mjs", "levels.mjs"):
+    for name in ("viewer.mjs", "levels.mjs", "heat.mjs"):
         result = subprocess.run(
             [NODE, "--check", str(VIEWER_DIR / name)],
             capture_output=True,
@@ -135,9 +140,9 @@ def test_viewer_scripts_have_valid_syntax() -> None:
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
-def test_color_and_threshold_helpers_pass_their_node_tests() -> None:
+def test_color_threshold_and_heatmap_helpers_pass_their_node_tests() -> None:
     result = subprocess.run(
-        [NODE, "--test", str(JS_TESTS)],
+        [NODE, "--test", *map(str, JS_TESTS)],
         capture_output=True,
         text=True,
         timeout=120,

@@ -63,6 +63,27 @@ void main() {
     );
   });
 
+  testWidgets('the preview becomes one smooth picture, made again only for a '
+      'new grid', (tester) async {
+    await pump(tester, preview: grid());
+    // The picture is decoded by the engine, outside the fake clock.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    // A new grid replaces it; none at all removes it, with nothing leaking.
+    await pump(tester, preview: grid());
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    await pump(tester);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(TrailView), findsOneWidget);
+  });
+
   testWidgets('draws a heatmap with per-cell confidence', (tester) async {
     final g = PreviewGrid(
       floorId: 'f1',

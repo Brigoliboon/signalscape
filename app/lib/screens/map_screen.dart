@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../config.dart';
+import '../core/heatmap.dart';
 import '../core/levels.dart';
 import '../core/map_data.dart';
 import '../core/map_tiles.dart';
@@ -11,9 +13,19 @@ import '../theme.dart';
 
 enum _Stage { loading, ready, empty, notProcessed, failed }
 
-/// The coverage of a processed survey on a street map (FR-16a): coloured
-/// cells, estimated access points and the walked trail, one floor at a time.
-/// Tiles come from Mapbox when the build has a token, else OpenStreetMap.
+/// Draws a heatmap picture. The default does the work in an isolate; tests pass
+/// one that answers at once.
+typedef HeatRenderer = Future<HeatImage> Function(HeatRequest request);
+
+Future<HeatImage> _renderInIsolate(HeatRequest request) =>
+    compute(renderHeatPng, request);
+
+/// The coverage of a processed survey on a map (FR-16a): a smooth colour
+/// field with contour lines, estimated access points and the walked trail, one
+/// floor at a time. The field is one picture made from the floor's grid (see
+/// `core/heatmap.dart`) with an opacity slider, a minimum-signal slider and a
+/// contour switch. Tiles come from Mapbox when the build has a token, else
+/// OpenStreetMap.
 class MapScreen extends StatefulWidget {
   const MapScreen({
     super.key,
@@ -23,6 +35,7 @@ class MapScreen extends StatefulWidget {
     this.tiles,
     this.tileProvider,
     this.onOpen3d,
+    this.heatRenderer,
   });
 
   final ApiClient api;
@@ -39,6 +52,9 @@ class MapScreen extends StatefulWidget {
 
   /// When set, the app bar offers a switch to the 3D view.
   final void Function(BuildContext context)? onOpen3d;
+
+  /// Defaults to an isolate; tests pass their own.
+  final HeatRenderer? heatRenderer;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -64,6 +80,21 @@ class _MapScreenState extends State<MapScreen> {
   bool _showCells = true;
   bool _showAps = true;
   bool _showTrail = true;
+
+  // How the heatmap is drawn. The opacity is set on the overlay and redraws
+  // nothing; the minimum signal and the contour lines make a new picture.
+  double _opacity = 0.85;
+  double _minRssi = rampWeakDbm.toDouble();
+  bool _contours = true;
+  late final HeatRenderer _renderer = widget.heatRenderer ?? _renderInIsolate;
+
+  /// Pictures made so far, by floor, network and settings, newest last.
+  final Map<String, HeatImage> _heatCache = {};
+  int _epoch = 0; // changes whenever the grids are read again
+  ({int epoch, int level, HeatImage image})? _heatShown;
+
+  /// What the last tap on the map found, as text for the panel.
+  String? _cellInfo;
 
   @override
   void initState() {
@@ -118,9 +149,12 @@ class _MapScreenState extends State<MapScreen> {
         _networks = networks;
         _bssid = null;
         _data = data;
+        _epoch++;
+        _cellInfo = null;
         _level = data.initialFloor?.level;
         _stage = data.isEmpty ? _Stage.empty : _Stage.ready;
       });
+      _requestHeat();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -177,11 +211,14 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _bssid = bssid;
         _data = data;
+        _epoch++;
+        _cellInfo = null;
         if (data.floorAt(_level ?? -9999) == null) {
           _level = data.initialFloor?.level;
         }
         _networkLoading = false;
       });
+      _requestHeat();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _networkLoading = false);
@@ -200,9 +237,79 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _pickFloor(int level) {
-    setState(() => _level = level);
+    setState(() {
+      _level = level;
+      _cellInfo = null;
+    });
     final fit = _fitFor(_floor);
     if (fit != null) _map.fitCamera(fit);
+    _requestHeat();
+  }
+
+  String _heatKey(FloorLayer floor) =>
+      '$_epoch|${floor.level}|${_minRssi.round()}|$_contours';
+
+  /// Makes the picture for the floor on show, unless it is already made.
+  void _requestHeat() {
+    final floor = _floor;
+    final heat = floor?.heat;
+    if (floor == null || heat == null) return;
+    final key = _heatKey(floor);
+    final epoch = _epoch;
+    final level = floor.level;
+    final cached = _heatCache[key];
+    if (cached != null) {
+      setState(() => _heatShown = (epoch: epoch, level: level, image: cached));
+      return;
+    }
+    _renderer(
+      HeatRequest(grid: heat.grid, minRssi: _minRssi, contours: _contours),
+    ).then<void>(
+      (image) {
+        if (!mounted) return;
+        setState(() {
+          _heatCache[key] = image;
+          while (_heatCache.length > 8) {
+            _heatCache.remove(_heatCache.keys.first);
+          }
+          // A picture for a floor or network that is no longer on show is kept
+          // for later but not shown.
+          if (epoch == _epoch && level == _level) {
+            _heatShown = (epoch: epoch, level: level, image: image);
+          }
+        });
+      },
+      onError: (Object _) {
+        // No picture: the map still shows everything else.
+      },
+    );
+  }
+
+  /// The picture for [floor]: the one for the current settings, else the last
+  /// one for this floor while the new one is made.
+  HeatImage? _heatImageFor(FloorLayer floor) {
+    final exact = _heatCache[_heatKey(floor)];
+    if (exact != null) return exact;
+    final shown = _heatShown;
+    return shown != null && shown.epoch == _epoch && shown.level == floor.level
+        ? shown.image
+        : null;
+  }
+
+  /// A tap on the map: the value of the nearest cell of the floor on show.
+  void _tapMap(LatLng at) {
+    final floor = _floor;
+    final heat = floor?.heat;
+    if (!_showCells || heat == null) return;
+    final cell = heat.nearestCell(at);
+    final value = cell.value;
+    final t = _data?.thresholds ?? const Thresholds();
+    setState(() {
+      _cellInfo = value == null
+          ? 'No data here (no reading within 5 m)'
+          : '${value.round()} dBm · ${levelName(levelFor(value, t))}'
+                ' · nearest cell';
+    });
   }
 
   void _showAccessPoint(MapAccessPoint ap) {
@@ -323,6 +430,7 @@ class _MapScreenState extends State<MapScreen> {
             initialZoom: 2,
             initialCameraFit: _fitFor(floor),
             maxZoom: 22,
+            onTap: (_, at) => _tapMap(at),
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
@@ -337,25 +445,22 @@ class _MapScreenState extends State<MapScreen> {
               userAgentPackageName: mapUserAgentPackage,
               tileProvider: widget.tileProvider,
             ),
-            if (_showCells && floor.cells.isNotEmpty)
-              PolygonLayer(
-                key: ValueKey('cells-${floor.level}'),
-                simplificationTolerance: 0,
-                polygons: [
-                  for (final c in floor.cells)
-                    Polygon(
-                      points: c.ring,
-                      // Strong enough to read on bright imagery, with a faint
-                      // edge so neighbouring cells stay apart.
-                      // Faded where few readings back the cell.
-                      color: levelColor(c.level).withValues(
-                        alpha: confidenceAlpha(c.confidence, full: 0.75),
-                      ),
-                      borderColor: Colors.black.withValues(
-                        alpha: confidenceAlpha(c.confidence, full: 0.3),
-                      ),
-                      borderStrokeWidth: 0.6,
+            if (_showCells &&
+                floor.heat != null &&
+                _heatImageFor(floor) != null)
+              OverlayImageLayer(
+                key: ValueKey('heat-${floor.level}'),
+                overlayImages: [
+                  OverlayImage(
+                    bounds: LatLngBounds(
+                      floor.heat!.pictureSouthWest,
+                      floor.heat!.pictureNorthEast,
                     ),
+                    imageProvider: MemoryImage(_heatImageFor(floor)!.png),
+                    opacity: _opacity,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.medium,
+                  ),
                 ],
               ),
             if (_showTrail && floor.trail.length > 1)
@@ -424,6 +529,21 @@ class _MapScreenState extends State<MapScreen> {
         ),
         Positioned(left: 8, right: 8, top: 8, child: _controls(data, floor)),
         Positioned(left: 8, bottom: 8, child: _legend(data.thresholds)),
+        if (_cellInfo != null)
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 112,
+            child: Container(
+              key: const ValueKey('cell-info'),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(_cellInfo!),
+            ),
+          ),
         Positioned(
           right: 8,
           bottom: 8,
@@ -534,6 +654,12 @@ class _MapScreenState extends State<MapScreen> {
               selected: _showCells,
               onSelected: (v) => setState(() => _showCells = v),
             ),
+            ActionChip(
+              key: const ValueKey('display-settings'),
+              avatar: const Icon(Icons.tune, size: 18),
+              label: const Text('Display'),
+              onPressed: _showDisplaySettings,
+            ),
             FilterChip(
               key: const ValueKey('layer-aps'),
               label: const Text('Access points'),
@@ -606,12 +732,73 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Opacity, minimum signal and contour lines, in a bottom sheet.
+  void _showDisplaySettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Display', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Text('Opacity ${(_opacity * 100).round()}%'),
+                Slider(
+                  key: const ValueKey('heat-opacity'),
+                  value: _opacity,
+                  min: 0.1,
+                  max: 1,
+                  divisions: 18,
+                  label: '${(_opacity * 100).round()}%',
+                  onChanged: (v) {
+                    setState(() => _opacity = v);
+                    setSheet(() {});
+                  },
+                ),
+                Text('Min RSSI ${_minRssi.round()} dBm'),
+                Slider(
+                  key: const ValueKey('heat-min-rssi'),
+                  value: _minRssi,
+                  min: rampWeakDbm.toDouble(),
+                  max: rampStrongDbm.toDouble(),
+                  divisions: rampStrongDbm - rampWeakDbm,
+                  label: '${_minRssi.round()} dBm',
+                  onChanged: (v) {
+                    setState(() => _minRssi = v);
+                    setSheet(() {});
+                  },
+                  // The picture is made again once the slider is let go.
+                  onChangeEnd: (_) => _requestHeat(),
+                ),
+                SwitchListTile(
+                  key: const ValueKey('heat-contours'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Contour lines'),
+                  subtitle: Text('Every $defaultContourStepDb dBm'),
+                  value: _contours,
+                  onChanged: (v) {
+                    setState(() => _contours = v);
+                    setSheet(() {});
+                    _requestHeat();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The colour ramp as a gradient bar, strong on the left, with dBm ticks,
+  /// then the surveyor's thresholds as text.
   Widget _legend(Thresholds? t) {
-    String text(SignalLevel l) => switch (l) {
-      SignalLevel.good => t == null ? 'Good' : 'Good ≥ ${t.goodDbm} dBm',
-      SignalLevel.fair => 'Fair',
-      SignalLevel.dead => t == null ? 'Dead' : 'Dead < ${t.deadDbm} dBm',
-    };
+    const barWidth = 180.0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -622,15 +809,61 @@ class _MapScreenState extends State<MapScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final l in SignalLevel.values)
-            Row(
-              mainAxisSize: MainAxisSize.min,
+          Container(
+            key: const ValueKey('legend-ramp'),
+            width: barWidth,
+            height: 10,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: Colors.black45, width: 0.5),
+              gradient: LinearGradient(
+                colors: [
+                  for (final s in rampStops) Color.fromARGB(255, s.r, s.g, s.b),
+                ],
+                stops: [
+                  for (final s in rampStops) rampFraction(s.dbm.toDouble()),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: barWidth,
+            height: 14,
+            child: Stack(
               children: [
-                Container(width: 12, height: 12, color: levelColor(l)),
-                const SizedBox(width: 8),
-                Text(text(l), style: const TextStyle(fontSize: 12)),
+                for (final tick in legendTicks)
+                  Positioned(
+                    // Centred on its place on the bar, but kept inside it.
+                    left: (rampFraction(tick.toDouble()) * barWidth - 12).clamp(
+                      0.0,
+                      barWidth - 24,
+                    ),
+                    width: 24,
+                    child: Text(
+                      '$tick',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
               ],
             ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            t == null ? 'Good' : 'Good ≥ ${t.goodDbm} dBm',
+            style: const TextStyle(fontSize: 12),
+          ),
+          Text(
+            t == null ? 'Dead' : 'Dead < ${t.deadDbm} dBm',
+            style: const TextStyle(fontSize: 12),
+          ),
+          Text(
+            'Lines every $defaultContourStepDb dBm',
+            style: const TextStyle(fontSize: 12),
+          ),
           const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -638,8 +871,11 @@ class _MapScreenState extends State<MapScreen> {
               Container(
                 width: 12,
                 height: 12,
-                color: levelColor(
-                  SignalLevel.fair,
+                color: Color.fromARGB(
+                  255,
+                  rampStops[3].r,
+                  rampStops[3].g,
+                  rampStops[3].b,
                 ).withValues(alpha: confidenceAlpha(0, full: 0.75)),
               ),
               const SizedBox(width: 8),

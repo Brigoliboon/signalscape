@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:latlong2/latlong.dart';
 
+import 'heatmap.dart';
 import 'levels.dart';
 
 /// One coverage cell: a square on the map with the signal level it was given.
@@ -36,6 +39,114 @@ class MapAccessPoint {
   String get name => ssid.isEmpty ? '(hidden network)' : ssid;
 }
 
+/// The cells of one floor put back into a grid, with where it sits on the map,
+/// so the heatmap can be drawn as one smooth picture. The API's GeoJSON has one
+/// square per cell with data; their corners sit on a regular lattice (the
+/// grid), so the grid is found again from the squares.
+class FloorHeat {
+  const FloorHeat({
+    required this.grid,
+    required this.south,
+    required this.west,
+    required this.cellLat,
+    required this.cellLng,
+  });
+
+  /// Rebuilds the grid from [cells], or null when there is nothing to draw (no
+  /// cells, a degenerate cell, or a lattice so large it must be bad data).
+  static FloorHeat? fromCells(List<MapCell> cells, {int maxCells = 4000000}) {
+    if (cells.isEmpty) return null;
+    double? south, west, north, east;
+    for (final c in cells) {
+      for (final p in c.ring) {
+        south = south == null || p.latitude < south ? p.latitude : south;
+        north = north == null || p.latitude > north ? p.latitude : north;
+        west = west == null || p.longitude < west ? p.longitude : west;
+        east = east == null || p.longitude > east ? p.longitude : east;
+      }
+    }
+    // The size of one cell. Corners are rounded in the GeoJSON, so one cell's
+    // box is only roughly right: use the average over all cells to count the
+    // columns and rows, then take the exact size from the whole extent.
+    var sumLat = 0.0, sumLng = 0.0;
+    for (final c in cells) {
+      final lats = c.ring.map((p) => p.latitude);
+      final lngs = c.ring.map((p) => p.longitude);
+      sumLat += lats.reduce(math.max) - lats.reduce(math.min);
+      sumLng += lngs.reduce(math.max) - lngs.reduce(math.min);
+    }
+    final roughLat = sumLat / cells.length;
+    final roughLng = sumLng / cells.length;
+    if (roughLat <= 0 || roughLng <= 0) return null;
+    final cols = ((east! - west!) / roughLng).round();
+    final rows = ((north! - south!) / roughLat).round();
+    if (cols < 1 || rows < 1 || cols * rows > maxCells) return null;
+    final cellLat = (north - south) / rows;
+    final cellLng = (east - west) / cols;
+    final values = List<double?>.filled(cols * rows, null);
+    final confidence = List<double?>.filled(cols * rows, null);
+    for (final c in cells) {
+      final minLat = c.ring.map((p) => p.latitude).reduce(math.min);
+      final minLng = c.ring.map((p) => p.longitude).reduce(math.min);
+      final col = ((minLng - west) / cellLng).round();
+      final row = ((minLat - south) / cellLat).round();
+      if (col < 0 || col >= cols || row < 0 || row >= rows) continue;
+      values[row * cols + col] = c.rssiDbm;
+      confidence[row * cols + col] = c.confidence;
+    }
+    return FloorHeat(
+      grid: HeatGrid(
+        cols: cols,
+        rows: rows,
+        values: values,
+        confidence: confidence,
+      ),
+      south: south,
+      west: west,
+      cellLat: cellLat,
+      cellLng: cellLng,
+    );
+  }
+
+  final HeatGrid grid;
+
+  /// The south-west corner of the grid, in degrees.
+  final double south;
+  final double west;
+
+  /// The size of one cell, in degrees.
+  final double cellLat;
+  final double cellLng;
+
+  /// The corners of the picture: the grid plus one blank cell on every side.
+  LatLng get pictureSouthWest =>
+      LatLng(south - padCells * cellLat, west - padCells * cellLng);
+  LatLng get pictureNorthEast => LatLng(
+    south + (grid.rows + padCells) * cellLat,
+    west + (grid.cols + padCells) * cellLng,
+  );
+
+  /// The cell nearest to [at] (a tap just outside the data still finds the
+  /// nearest one), with its value, or null value when that cell is empty.
+  ({int col, int row, double? value, double confidence}) nearestCell(
+    LatLng at,
+  ) {
+    final u =
+        (at.longitude - pictureSouthWest.longitude) /
+        ((grid.cols + 2 * padCells) * cellLng);
+    final v =
+        (at.latitude - pictureSouthWest.latitude) /
+        ((grid.rows + 2 * padCells) * cellLat);
+    final c = cellAtPadded(u, v, grid.cols, grid.rows);
+    return (
+      col: c.col,
+      row: c.row,
+      value: grid.at(c.col, c.row),
+      confidence: grid.confidenceAt(c.col, c.row),
+    );
+  }
+}
+
 /// Everything drawn for one floor. Only one floor is shown at a time.
 class FloorLayer {
   const FloorLayer({
@@ -46,11 +157,15 @@ class FloorLayer {
     this.trail = const [],
     this.start,
     this.end,
+    this.heat,
   });
 
   final int level;
   final String label;
   final List<MapCell> cells;
+
+  /// The cells as one grid for the smooth picture, null when there are none.
+  final FloorHeat? heat;
   final List<MapAccessPoint> accessPoints;
 
   /// The walk on this floor, in time order.
@@ -154,6 +269,7 @@ class SurveyMapData {
           level: l,
           label: labels[l] ?? 'Level $l',
           cells: cells[l] ?? const [],
+          heat: FloorHeat.fromCells(cells[l] ?? const []),
           accessPoints: aps[l] ?? const [],
           trail: trails[l] ?? const [],
           start: start != null && start.$1 == l ? start.$2 : null,

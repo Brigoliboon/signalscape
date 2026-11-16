@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../core/heatmap.dart';
 import '../core/levels.dart';
 import '../core/preview.dart';
 import '../theme.dart';
@@ -41,7 +43,7 @@ class PathPoint {
 /// coloured by signal level, and a marker where the walk started, over the
 /// live preview heatmap when there is one. The view fits the walk, not the
 /// heatmap, and re-fits as the walk grows; north is up.
-class TrailView extends StatelessWidget {
+class TrailView extends StatefulWidget {
   const TrailView({
     super.key,
     required this.points,
@@ -68,20 +70,90 @@ class TrailView extends StatelessWidget {
   final double? heading;
 
   @override
+  State<TrailView> createState() => _TrailViewState();
+}
+
+class _TrailViewState extends State<TrailView> {
+  /// The smooth picture of [TrailView.preview]: the same ramp and soft edge as
+  /// the 2D map, without contour lines, made again only when the preview grid
+  /// changes (a new one arrives every few seconds), not on every repaint.
+  ui.Image? _heat;
+  int _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _makeHeat();
+  }
+
+  @override
+  void didUpdateWidget(TrailView old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.preview, widget.preview)) _makeHeat();
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _heat?.dispose();
+    super.dispose();
+  }
+
+  void _makeHeat() {
+    final g = widget.preview;
+    final generation = ++_generation;
+    if (g == null) {
+      _heat?.dispose();
+      _heat = null;
+      return;
+    }
+    // A live grid is small; keep the picture small too.
+    final p = renderHeatPicture(
+      HeatRequest(
+        grid: HeatGrid(
+          cols: g.cols,
+          rows: g.rows,
+          values: g.values,
+          confidence: g.confidence,
+        ),
+        contours: false,
+        upsample: 4,
+        maxSide: 512,
+      ),
+    );
+    ui.decodeImageFromPixels(
+      p.rgba,
+      p.width,
+      p.height,
+      ui.PixelFormat.rgba8888,
+      (image) {
+        if (!mounted || generation != _generation) {
+          image.dispose();
+          return;
+        }
+        setState(() {
+          _heat?.dispose();
+          _heat = image;
+        });
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Live trail with ${points.length} scan points',
+      label: 'Live trail with ${widget.points.length} scan points',
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: CustomPaint(
           painter: _TrailPainter(
-            points,
-            path,
-            x,
-            y,
-            heading,
-            preview,
-            thresholds,
+            widget.points,
+            widget.path,
+            widget.x,
+            widget.y,
+            widget.heading,
+            widget.preview,
+            _heat,
           ),
           child: const SizedBox.expand(),
         ),
@@ -98,11 +170,13 @@ class _TrailPainter extends CustomPainter {
     this.y,
     this.heading,
     this.preview,
-    this.thresholds,
+    this.heat,
   );
 
   final PreviewGrid? preview;
-  final Thresholds thresholds;
+
+  /// The picture of [preview], when it is ready.
+  final ui.Image? heat;
   final List<TrailPoint> points;
   final List<PathPoint> path;
   final double x;
@@ -138,31 +212,25 @@ class _TrailPainter extends CustomPainter {
       size.height / 2 - (py - cy) * scale,
     );
 
-    // The preview heatmap, under everything else.
-    if (g != null) {
-      final cell = g.cellM * scale;
-      final paint = Paint();
-      for (var row = 0; row < g.rows; row++) {
-        for (var col = 0; col < g.cols; col++) {
-          final v = g.at(col, row);
-          if (v == null) continue;
-          final tl = at(g.x0 + col * g.cellM, g.y0 + (row + 1) * g.cellM);
-          if (tl.dx > size.width ||
-              tl.dy > size.height ||
-              tl.dx + cell < 0 ||
-              tl.dy + cell < 0) {
-            continue;
-          }
-          // Faded where few readings back the cell.
-          paint.color = levelColor(levelFor(v.round(), thresholds)).withValues(
-            alpha: confidenceAlpha(g.confidenceAt(col, row), full: 0.55),
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(tl.dx, tl.dy, cell + 0.5, cell + 0.5),
-            paint,
-          );
-        }
-      }
+    // The preview heatmap, under everything else: one smooth picture that
+    // covers the grid plus a blank cell all round.
+    final picture = heat;
+    if (g != null && picture != null) {
+      final topLeft = at(g.x0 - g.cellM, g.y1 + g.cellM);
+      final bottomRight = at(g.x1 + g.cellM, g.y0 - g.cellM);
+      canvas.drawImageRect(
+        picture,
+        Rect.fromLTWH(
+          0,
+          0,
+          picture.width.toDouble(),
+          picture.height.toDouble(),
+        ),
+        Rect.fromPoints(topLeft, bottomRight),
+        Paint()
+          ..filterQuality = FilterQuality.medium
+          ..color = Colors.white.withValues(alpha: 0.75),
+      );
     }
 
     // A 5 m grid.
