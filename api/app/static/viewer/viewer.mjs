@@ -12,8 +12,10 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import {
   CONFIDENCE_NOTE,
+  LEGEND_STORAGE_KEY,
   LEVEL_COLORS,
   LEVEL_NAMES,
+  NARROW_MAX_PX,
   cellLevels,
   dataExtent,
   fadedColor,
@@ -21,6 +23,7 @@ import {
   formatDbm,
   isUuid,
   legendEntries,
+  legendStartsOpen,
   levelFor,
   networkLabel,
   parseFragment,
@@ -58,6 +61,10 @@ const els = {
   info: $('info'),
   legend: $('legend-list'),
   layersToggle: $('layers-toggle'),
+  layersClose: $('layers-close'),
+  legendToggle: $('legend-toggle'),
+  legendPanel: $('legend-panel'),
+  rampMini: $('ramp-mini'),
   layers: $('layers'),
   network: $('network'),
   floorList: $('floor-list'),
@@ -679,13 +686,17 @@ function describeCell(hit) {
 // --- controls ----------------------------------------------------------------
 
 /** The ramp as a gradient bar (strong on the left) with dBm ticks under it. */
-function buildRampBar() {
-  const canvas = els.rampBar;
+function paintRamp(canvas) {
   const context = canvas.getContext('2d');
   const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
   for (const stop of RAMP_STOPS) gradient.addColorStop(rampFraction(stop.dbm), stop.color);
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function buildRampBar() {
+  paintRamp(els.rampBar);
+  paintRamp(els.rampMini); // the collapsed legend keeps a small bar
   els.rampTicks.replaceChildren();
   for (const dbm of LEGEND_TICKS) {
     const tick = document.createElement('span');
@@ -840,12 +851,38 @@ els.minRssi.max = String(RAMP_STRONG_DBM);
 els.minRssi.value = String(state.heat.minRssi);
 els.contours.checked = state.heat.contours;
 showHeatSettings();
-els.layersToggle.addEventListener('click', () => {
-  const open = els.layers.hidden;
+
+// --- layout: legend and Layers --------------------------------------------------
+
+function setLegend(open, remember = true) {
+  els.legendPanel.hidden = !open;
+  els.legendToggle.setAttribute('aria-expanded', String(open));
+  if (!remember) return;
+  try {
+    window.sessionStorage.setItem(LEGEND_STORAGE_KEY, open ? '1' : '0');
+  } catch {
+    // Storage can be blocked in a WebView; the legend still works.
+  }
+}
+
+function setLayers(open) {
   els.layers.hidden = !open;
   els.layersToggle.setAttribute('aria-expanded', String(open));
   document.body.classList.toggle('sheet-open', open);
-});
+  // On a phone the sheet and the legend would compete for the same screen.
+  if (open && window.innerWidth <= NARROW_MAX_PX) setLegend(false, false);
+}
+
+let storedLegend = null;
+try {
+  storedLegend = window.sessionStorage.getItem(LEGEND_STORAGE_KEY);
+} catch {
+  storedLegend = null;
+}
+setLegend(legendStartsOpen(storedLegend, window.innerWidth), false);
+els.legendToggle.addEventListener('click', () => setLegend(els.legendPanel.hidden));
+els.layersToggle.addEventListener('click', () => setLayers(els.layers.hidden));
+els.layersClose.addEventListener('click', () => setLayers(false));
 
 // --- start -------------------------------------------------------------------
 

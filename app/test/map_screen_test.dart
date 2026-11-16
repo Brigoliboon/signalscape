@@ -132,9 +132,14 @@ Future<List<String>> pump(
   return calls;
 }
 
-Future<void> pumpWith(WidgetTester tester, ApiClient api) async {
+Future<void> pumpWith(
+  WidgetTester tester,
+  ApiClient api, {
+  MapTiles? tiles,
+  double width = 800,
+}) async {
   heatRequests.clear();
-  tester.view.physicalSize = const Size(800, 1400);
+  tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -143,7 +148,7 @@ Future<void> pumpWith(WidgetTester tester, ApiClient api) async {
       home: MapScreen(
         api: api,
         surveyId: 's1',
-        tiles: MapTiles.forToken(''),
+        tiles: tiles ?? MapTiles.forToken(''),
         tileProvider: NoTiles(),
         heatRenderer: fakeHeat,
       ),
@@ -180,6 +185,12 @@ void main() {
     expect(overlay.opacity, 0.85);
     expect(find.text('Ground'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
+    // On a phone the legend starts collapsed, with a small bar and a toggle.
+    expect(find.byKey(const ValueKey('legend-ramp-mini')), findsOneWidget);
+    expect(find.byKey(const ValueKey('legend-ramp')), findsNothing);
+    expect(find.text('Good ≥ -60 dBm'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('legend-toggle')));
+    await tester.pumpAndSettle();
     // The surveyor's thresholds are in the legend.
     expect(find.text('Good ≥ -60 dBm'), findsOneWidget);
     expect(find.text('Dead < -75 dBm'), findsOneWidget);
@@ -454,10 +465,10 @@ void main() {
     );
   });
 
-  testWidgets('the 3D switch is offered when given', (tester) async {
+  testWidgets('the 2D / 3D switch is offered when given', (tester) async {
     BuildContext? got;
     await pump(tester, goodRoutes(), onOpen3d: (c) => got = c);
-    await tester.tap(find.text('3D view'));
+    await tester.tap(find.text('3D'));
     expect(got, isNotNull);
   });
 
@@ -577,5 +588,107 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('© Mapbox © OpenStreetMap contributors'), findsOneWidget);
+  });
+
+  group('layout and style', () {
+    setUp(() => MapStylePreference.current = MapStyle.satellite);
+    tearDown(() => MapStylePreference.current = MapStyle.satellite);
+
+    ApiClient goodApi() => apiFor((req) async {
+      final r = goodRoutes()['${req.method} ${req.url.path}'];
+      return r == null ? http.Response('{}', 404) : r();
+    });
+
+    String tileUrl(WidgetTester tester) =>
+        tester.widget<TileLayer>(find.byType(TileLayer)).urlTemplate!;
+
+    testWidgets('the legend is collapsed on a phone and can be opened', (
+      tester,
+    ) async {
+      await pumpWith(tester, goodApi(), width: 800); // 400 dp
+      expect(find.byKey(const ValueKey('legend-ramp')), findsNothing);
+      expect(find.byKey(const ValueKey('legend-ramp-mini')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('legend-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('legend-ramp')), findsOneWidget);
+      expect(find.byKey(const ValueKey('legend-ramp-mini')), findsNothing);
+      // And back.
+      await tester.tap(find.byKey(const ValueKey('legend-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('legend-ramp')), findsNothing);
+    });
+
+    testWidgets('the legend starts open on a tablet', (tester) async {
+      await pumpWith(tester, goodApi(), width: 1600); // 800 dp
+      expect(find.byKey(const ValueKey('legend-ramp')), findsOneWidget);
+      expect(find.byKey(const ValueKey('legend-ramp-mini')), findsNothing);
+    });
+
+    testWidgets('the controls sit in two cards that do not overlap', (
+      tester,
+    ) async {
+      await pumpWith(tester, goodApi(), width: 720); // 360 dp
+      final top = tester.getRect(find.byKey(const ValueKey('top-panel')));
+      final bottom = tester.getRect(find.byKey(const ValueKey('toolbar')));
+      final legend = tester.getRect(find.byKey(const ValueKey('legend')));
+      expect(top.overlaps(bottom), isFalse);
+      expect(top.overlaps(legend), isFalse);
+      expect(bottom.overlaps(legend), isFalse);
+      // Together they leave a good part of the map free (the test font is much
+      // wider than a real one, so the toolbar wraps here).
+      final map = tester.getRect(find.byType(FlutterMap));
+      final taken = top.height + bottom.height + legend.height;
+      expect(taken, lessThan(map.height * 0.6));
+      // Everything fits across a 360 dp phone.
+      for (final r in [top, bottom, legend]) {
+        expect(r.left, greaterThanOrEqualTo(0));
+        expect(r.right, lessThanOrEqualTo(360));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('with a token the style can be changed', (tester) async {
+      await pumpWith(tester, goodApi(), tiles: MapTiles.forToken('pk.test'));
+      expect(tileUrl(tester), contains('/mapbox/satellite-streets-v12/'));
+
+      await tester.tap(find.byKey(const ValueKey('map-style')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('style-note')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('style-streetsDark')));
+      await tester.pumpAndSettle();
+      expect(tileUrl(tester), contains('/mapbox/dark-v11/'));
+      // Still the same token.
+      expect(
+        tester.widget<TileLayer>(find.byType(TileLayer)).additionalOptions,
+        {'accessToken': 'pk.test'},
+      );
+
+      await tester.tap(find.byKey(const ValueKey('map-style')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('style-streetsLight')));
+      await tester.pumpAndSettle();
+      expect(tileUrl(tester), contains('/mapbox/light-v11/'));
+      // The choice is kept for the next map in this session.
+      expect(MapStylePreference.current, MapStyle.streetsLight);
+      await pumpWith(tester, goodApi(), tiles: MapTiles.forToken('pk.test'));
+      expect(tileUrl(tester), contains('/mapbox/light-v11/'));
+    });
+
+    testWidgets('without a token the picker is off and says why', (
+      tester,
+    ) async {
+      await pumpWith(tester, goodApi());
+      expect(tileUrl(tester), contains('tile.openstreetmap.org'));
+      await tester.tap(find.byKey(const ValueKey('map-style')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('style-note')), findsOneWidget);
+      expect(find.textContaining('Mapbox token'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('style-streetsDark')));
+      await tester.pumpAndSettle();
+      // Nothing changed and the sheet is still up.
+      expect(MapStylePreference.current, MapStyle.satellite);
+      expect(tileUrl(tester), contains('tile.openstreetmap.org'));
+      expect(find.byKey(const ValueKey('style-note')), findsOneWidget);
+    });
   });
 }

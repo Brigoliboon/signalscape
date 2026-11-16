@@ -11,12 +11,18 @@
 <body>
   <canvas id="scene" aria-label="3D Wi-Fi coverage, floors stacked. Drag to rotate, pinch to zoom, two fingers to move." role="img"></canvas>
 
-  <header class="bar">
+  <header class="toolbar">
     <h1>Wi-Fi coverage</h1>
-    <button id="layers-toggle" type="button" aria-expanded="false" aria-controls="layers">Layers</button>
+    <div class="toolbar-actions">
+      <button id="legend-toggle" class="chip" type="button" aria-expanded="false" aria-controls="legend-panel">
+        <canvas id="ramp-mini" width="48" height="12" aria-hidden="true"></canvas>
+        <span>Legend</span>
+      </button>
+      <button id="layers-toggle" class="chip primary" type="button" aria-expanded="false" aria-controls="layers">Layers</button>
+    </div>
   </header>
 
-  <section class="legend" aria-label="Legend">
+  <section id="legend-panel" class="legend" aria-label="Legend" hidden>
     <div class="ramp">
       <canvas id="ramp-bar" width="240" height="14" role="img" aria-label="Signal colour scale from -30 dBm (strong, red) to -100 dBm (weak, dark blue)"></canvas>
       <div id="ramp-ticks" aria-hidden="true"></div>
@@ -26,37 +32,49 @@
   </section>
 
   <p id="status" role="status" aria-live="polite">Open this page from the SignalScape app.</p>
-  <p id="info" role="status" aria-live="polite" hidden></p>
 
-  <section id="layers" class="sheet" aria-label="Layers" hidden>
-    <label class="field" for="network">Network</label>
-    <select id="network"></select>
+  <div id="dock">
+    <p id="info" role="status" aria-live="polite" hidden></p>
 
-    <fieldset>
-      <legend>Floors</legend>
-      <div id="floor-list"></div>
-    </fieldset>
+    <section id="layers" class="sheet" aria-label="Layers" hidden>
+      <div class="sheet-head">
+        <h2>Layers</h2>
+        <button id="layers-close" class="chip quiet" type="button" aria-label="Close layers">Close</button>
+      </div>
 
-    <fieldset>
-      <legend>Heatmap</legend>
-      <label class="slider" for="heat-opacity">
-        <span>Opacity <output id="heat-opacity-text" for="heat-opacity"></output></span>
-        <input id="heat-opacity" type="range" min="10" max="100" step="5" value="85">
-      </label>
-      <label class="slider" for="heat-min-rssi">
-        <span>Min RSSI <output id="heat-min-rssi-text" for="heat-min-rssi"></output></span>
-        <input id="heat-min-rssi" type="range" min="-100" max="-30" step="1" value="-100">
-      </label>
-      <label class="check"><input id="heat-contours" type="checkbox" checked> Contour lines</label>
-    </fieldset>
+      <div class="sheet-body">
+        <fieldset class="card">
+          <legend>Network</legend>
+          <select id="network" aria-label="Network"></select>
+        </fieldset>
 
-    <fieldset>
-      <legend>Markers</legend>
-      <label class="check"><input id="show-aps" type="checkbox" checked> Estimated access points</label>
-      <label class="check"><input id="show-trail" type="checkbox" checked> Walked path, start and end</label>
-      <label class="check"><input id="show-dead" type="checkbox" checked> Highlight dead zones</label>
-    </fieldset>
-  </section>
+        <fieldset class="card">
+          <legend>Floors</legend>
+          <div id="floor-list"></div>
+        </fieldset>
+
+        <fieldset class="card">
+          <legend>Heatmap</legend>
+          <label class="slider" for="heat-opacity">
+            <span>Opacity <output id="heat-opacity-text" for="heat-opacity"></output></span>
+            <input id="heat-opacity" type="range" min="10" max="100" step="5" value="85">
+          </label>
+          <label class="slider" for="heat-min-rssi">
+            <span>Min RSSI <output id="heat-min-rssi-text" for="heat-min-rssi"></output></span>
+            <input id="heat-min-rssi" type="range" min="-100" max="-30" step="1" value="-100">
+          </label>
+          <label class="check"><input id="heat-contours" type="checkbox" checked> Contour lines</label>
+        </fieldset>
+
+        <fieldset class="card">
+          <legend>Markers</legend>
+          <label class="check"><input id="show-aps" type="checkbox" checked> Estimated access points</label>
+          <label class="check"><input id="show-trail" type="checkbox" checked> Walked path, start and end</label>
+          <label class="check"><input id="show-dead" type="checkbox" checked> Highlight dead zones</label>
+        </fieldset>
+      </div>
+    </section>
+  </div>
 
   <script type="module" src="viewer.mjs"></script>
   <noscript>This page needs JavaScript.</noscript>

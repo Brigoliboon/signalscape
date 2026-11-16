@@ -18,7 +18,10 @@ import {
   formatDbm,
   hexToRgb,
   isUuid,
+  LEGEND_STORAGE_KEY,
+  NARROW_MAX_PX,
   legendEntries,
+  legendStartsOpen,
   levelFor,
   networkLabel,
   parseFragment,
@@ -141,4 +144,18 @@ test('confidenceAlpha fades from full opacity to 30% of it', () => {
 test('fadedColor is the level colour at the lowest opacity', () => {
   assert.equal(fadedColor('#f2a900'), 'rgba(242, 169, 0, 0.3)');
   assert.equal(CONFIDENCE_NOTE, 'Faded = few readings');
+});
+
+test('the legend starts collapsed on a phone and open on a desktop, unless chosen', () => {
+  assert.equal(NARROW_MAX_PX, 600);
+  assert.equal(legendStartsOpen(null, 390), false);
+  assert.equal(legendStartsOpen(null, 600), false);
+  assert.equal(legendStartsOpen(null, 601), true);
+  assert.equal(legendStartsOpen(null, 1280), true);
+  // What was chosen earlier in the session wins, either way.
+  assert.equal(legendStartsOpen('1', 390), true);
+  assert.equal(legendStartsOpen('0', 1280), false);
+  // Anything else stored is ignored.
+  assert.equal(legendStartsOpen('maybe', 390), false);
+  assert.equal(LEGEND_STORAGE_KEY, 'signalscape.legend');
 });

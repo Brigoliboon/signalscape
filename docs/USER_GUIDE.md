@@ -122,28 +122,32 @@ Pressing back during a survey asks "Leave this survey?" ("Readings already taken
 
 **Coverage in 3D** shows your floors stacked, each with a smooth heatmap, estimated access points and your walk.
 
-- **Reading the colours:** the heatmap is one continuous colour field. **Red** is a very strong signal (about -30 dBm), then orange, yellow, green, cyan and **dark blue** for a very weak one (-100 dBm). The **legend** at the top left is a gradient bar with dBm ticks (-30, -45, -60, -75, -90, -100), with "Strong" on the left and "Weak" on the right. Under it are your thresholds in words ("Good: -67 dBm or stronger", "Dead zone: weaker than -80 dBm").
+- **Reading the colours:** the heatmap is one continuous colour field. **Red** is a very strong signal (about -30 dBm), then orange, yellow, green, cyan and **dark blue** for a very weak one (-100 dBm). The **Legend** button in the top bar (it shows a small colour bar) opens the legend under it: a gradient bar with dBm ticks (-30, -45, -60, -75, -90, -100), with "Strong" on the left and "Weak" on the right, and under it your thresholds in words ("Good: -67 dBm or stronger", "Dead zone: weaker than -80 dBm").
 - **Thin black contour lines** run along places with the same signal, one line every 5 dBm. Many lines close together mean the signal changes quickly; red blocks still mark dead zones.
 - **Faded** colour means few readings were close by, so treat it as a guess. Places with no reading within 5 m have no colour, and the edge of the coloured area fades out softly.
 - One finger rotates, two fingers pinch to zoom and slide to move.
 - Tap a spot on a floor to see the signal of the nearest measured cell and its level, for example "Ground: -52.9 dBm · Good". The colour is smooth, but this number is a real cell value.
-- **Layers** opens the sheet with **Network** (all networks, strongest signal, or one network), **Floors** (show or hide each floor), **Heatmap** and **Markers**.
+- **Legend:** on a phone it starts closed so it does not cover the view; tap **Legend** to open it and tap it again to close it. The page remembers your choice until you close the view. On a wide screen it starts open.
+- **Layers** opens a panel (a sheet at the bottom of a phone, a side panel on a wide screen; **Close** or the Layers button closes it). It has **Network** (all networks, strongest signal, or one network), **Floors** (show or hide each floor), **Heatmap** and **Markers**, each in its own box. The message you get when you tap a spot (for example "Ground: -52.9 dBm · Good") appears in a bar at the very bottom, above the panel, so nothing sits on top of anything else.
   - **Heatmap:** the **Opacity** slider (10% to 100%) makes the colours more or less see-through. The **Min RSSI** slider hides everything weaker than the value you pick, from -100 to -30 dBm, which is a quick way to see only where the signal is good enough; its value shows next to it, for example "-75 dBm". **Contour lines** turns the black lines on or off.
   - **Markers:** Estimated access points, Walked path, start and end (green Start, red End), and Highlight dead zones.
-- **2D map** at the top right switches to the map.
+- The **2D map | 3D** switch at the top right of the app bar goes to the map.
 
 ## 12. The 2D satellite map
 
-**Coverage map** draws the same results on a satellite map with street labels (Mapbox, when the app build has a token; otherwise a street map from OpenStreetMap).
+**Coverage** (2D map) draws the same results on a satellite map with street labels (Mapbox, when the app build has a token; otherwise a street map from OpenStreetMap).
 
-- Floor chips pick one floor at a time.
-- The **Network** dropdown picks "All networks (strongest signal)" or a single network, listed with its name, address (BSSID) and how many readings it has. The cells and access points reload for that network. A single network works on surveys that have been fully processed; if nothing was heard on that floor it says "No readings of this network on this floor."
-- **Coverage**, **Access points** and **Walk** chips turn each layer on or off. The walk shows **S** (start) and **E** (end) markers.
-- The coverage is the same smooth colour field as in 3D, laid over the satellite picture, with thin black contour lines every 5 dBm. The legend at the bottom left is the colour bar with dBm ticks, then your thresholds ("Good ≥ -67 dBm", "Dead < -80 dBm") and "Faded = few readings".
-- The **Display** chip opens a sheet with **Opacity** (10% to 100%), **Min RSSI** (hides everything weaker than the value, -100 to -30 dBm; the map redraws when you let go of the slider) and a **Contour lines** switch.
+The controls are in two boxes so they stay out of each other's way:
+
+- **Top box:** the floor chips (one floor at a time), the **Network** dropdown ("All networks (strongest signal)" or a single network, listed with its name, address (BSSID) and how many readings it has; the cells and access points reload for that network, which works on surveys that have been fully processed, and if nothing was heard on that floor it says "No readings of this network on this floor."), and two buttons beside it: **Display** (the sliders icon) and **Map style** (the layers icon).
+- **Bottom box:** the **Coverage**, **Access points** and **Walk** chips turn each layer on or off. The walk shows **S** (start) and **E** (end) markers. Above it, at the left, is the **Legend**.
+- **Display** opens a sheet with **Opacity** (10% to 100%), **Min RSSI** (hides everything weaker than the value, -100 to -30 dBm; the map redraws when you let go of the slider) and a **Contour lines** switch.
+- **Map style** lets you pick **Satellite** (the default), **Streets light** or **Streets dark**. A tick shows the one in use, and the app remembers it until you close it. Without a Mapbox token in the app build there is only the OpenStreetMap street map, so the three choices are greyed out and the sheet says "Styles need a Mapbox token."
+- The coverage is the same smooth colour field as in 3D, laid over the map, with thin black contour lines every 5 dBm.
+- The **Legend** is a small chip with a colour bar; on a phone it starts closed. Tap it to open the colour bar with dBm ticks, then your thresholds ("Good ≥ -67 dBm", "Dead < -80 dBm") and "Faded = few readings". Tap it again to close it.
 - Tap anywhere on the coverage to see the value of the nearest measured cell, for example "-62 dBm · Good · nearest cell", or "No data here (no reading within 5 m)".
 - Tap an access point to see its name, BSSID and strongest reading.
-- **3D view** at the top right goes back.
+- The **2D map | 3D** switch at the top right goes to the 3D view.
 - If the survey has not been processed yet the screen says "Not processed yet", and a Surveyor sees **Process now**.
 
 ## 13. Tips for better maps

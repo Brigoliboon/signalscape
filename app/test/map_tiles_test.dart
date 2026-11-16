@@ -39,4 +39,37 @@ void main() {
     // The test run passes no MAPBOX_TOKEN, and none is ever committed.
     expect(MapTiles.current().usesMapbox, isFalse);
   });
+
+  test('the three looks use the right Mapbox styles', () {
+    expect(MapStyle.values.map((s) => s.mapboxId), [
+      'satellite-streets-v12',
+      'light-v11',
+      'dark-v11',
+    ]);
+    expect(MapStyle.values.map((s) => s.label), [
+      'Satellite',
+      'Streets light',
+      'Streets dark',
+    ]);
+  });
+
+  test('withStyle keeps the token and changes only the style', () {
+    final base = MapTiles.forToken('pk.x');
+    for (final style in MapStyle.values) {
+      final t = base.withStyle(style);
+      expect(t.urlTemplate, contains('/mapbox/${style.mapboxId}/'));
+      expect(t.additionalOptions, {'accessToken': 'pk.x'});
+      expect(t.tileDimension, 512);
+      expect(t.usesMapbox, isTrue);
+    }
+  });
+
+  test('without a token every style is the OpenStreetMap map', () {
+    final base = MapTiles.forToken('');
+    for (final style in MapStyle.values) {
+      final t = base.withStyle(style);
+      expect(t.usesMapbox, isFalse);
+      expect(t.urlTemplate, base.urlTemplate);
+    }
+  });
 }

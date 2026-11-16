@@ -127,6 +127,29 @@ def test_viewer_is_not_part_of_the_json_api_docs(client: TestClient) -> None:
 NODE = shutil.which("node")
 
 
+def test_page_layout_has_one_toolbar_and_one_dock() -> None:
+    """Controls live in a toolbar and a dock; every toggle points at a real panel."""
+    html = (VIEWER_DIR / "index.html").read_text()
+    ids = set(re.findall(r'\sid="([^"]+)"', html))
+    for toggle in ("legend-toggle", "layers-toggle"):
+        assert toggle in ids
+    for target in re.findall(r'aria-controls="([^"]+)"', html):
+        assert target in ids, target
+    assert html.count('class="toolbar"') == 1
+    assert html.count('id="dock"') == 1
+    # The tap info and the Layers sheet share the dock, so they cannot overlap.
+    dock = html[html.index('id="dock"') :]
+    assert 'id="info"' in dock
+    assert 'id="layers"' in dock
+    # The legend is collapsible and the collapsed chip keeps a small gradient bar.
+    assert 'id="legend-panel"' in html
+    assert 'id="ramp-mini"' in html
+    assert 'aria-expanded="false" aria-controls="legend-panel"' in html
+    script = (VIEWER_DIR / "viewer.mjs").read_text()
+    assert "sessionStorage" in script
+    assert "legendStartsOpen" in script
+
+
 @pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
 def test_viewer_scripts_have_valid_syntax() -> None:
     for name in ("viewer.mjs", "levels.mjs", "heat.mjs"):

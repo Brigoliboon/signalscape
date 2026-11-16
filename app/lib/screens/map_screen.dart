@@ -10,6 +10,7 @@ import '../core/map_data.dart';
 import '../core/map_tiles.dart';
 import '../data/api_client.dart';
 import '../theme.dart';
+import '../widgets/view_switch.dart';
 
 enum _Stage { loading, ready, empty, notProcessed, failed }
 
@@ -62,7 +63,13 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController _map = MapController();
-  late final MapTiles _tiles = widget.tiles ?? MapTiles.current();
+  late final MapTiles _baseTiles = widget.tiles ?? MapTiles.current();
+  MapStyle _style = MapStylePreference.current;
+  MapTiles get _tiles => _baseTiles.withStyle(_style);
+
+  /// Null until the person taps the legend; then it follows the screen size
+  /// (collapsed on a phone, open on a tablet).
+  bool? _legendChoice;
 
   _Stage _stage = _Stage.loading;
   String? _message;
@@ -343,13 +350,10 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Coverage map'),
+        title: const Text('Coverage'),
         actions: [
           if (widget.onOpen3d != null)
-            TextButton(
-              onPressed: () => widget.onOpen3d!(context),
-              child: const Text('3D view'),
-            ),
+            ViewSwitch(is3d: false, onSwitch: () => widget.onOpen3d!(context)),
         ],
       ),
       body: SafeArea(
@@ -437,6 +441,7 @@ class _MapScreenState extends State<MapScreen> {
           ),
           children: [
             TileLayer(
+              key: ValueKey('tiles-${_style.name}'),
               urlTemplate: tiles.urlTemplate,
               additionalOptions: tiles.additionalOptions,
               tileDimension: tiles.tileDimension,
@@ -527,44 +532,58 @@ class _MapScreenState extends State<MapScreen> {
               ),
           ],
         ),
-        Positioned(left: 8, right: 8, top: 8, child: _controls(data, floor)),
-        Positioned(left: 8, bottom: 8, child: _legend(data.thresholds)),
-        if (_cellInfo != null)
-          Positioned(
-            left: 8,
-            right: 8,
-            bottom: 112,
-            child: Container(
-              key: const ValueKey('cell-info'),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(_cellInfo!),
-            ),
-          ),
+        Positioned(left: 8, right: 8, top: 8, child: _topPanel(data, floor)),
+        // Everything at the bottom is one column, so the parts cannot overlap.
         Positioned(
+          left: 8,
           right: 8,
           bottom: 8,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.5,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_cellInfo != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    key: const ValueKey('cell-info'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: _panel(radius: 12),
+                    child: Text(_cellInfo!),
+                  ),
+                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _legend(data.thresholds),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: _panel(radius: 6, alpha: 0.85),
+                        child: Text(
+                          tiles.attribution,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Text(
-                tiles.attribution,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
+              const SizedBox(height: 8),
+              _toolbar(),
+            ],
           ),
         ),
       ],
@@ -605,76 +624,171 @@ class _MapScreenState extends State<MapScreen> {
     ),
   );
 
-  Widget _controls(SurveyMapData data, FloorLayer floor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (data.floors.length > 1)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final f in data.floors)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      key: ValueKey('floor-${f.level}'),
-                      label: Text(f.label),
-                      selected: f.level == floor.level,
-                      onSelected: (_) => _pickFloor(f.level),
+  /// The look shared by every floating panel on the map.
+  BoxDecoration _panel({double radius = 12, double alpha = 0.94}) =>
+      BoxDecoration(
+        color: AppColors.surface.withValues(alpha: alpha),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.outline),
+      );
+
+  /// The top card: which floor and network are shown, and the Display and
+  /// map style buttons.
+  Widget _topPanel(SurveyMapData data, FloorLayer floor) {
+    return Container(
+      key: const ValueKey('top-panel'),
+      padding: const EdgeInsets.all(8),
+      decoration: _panel(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (data.floors.length > 1)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final f in data.floors)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        key: ValueKey('floor-${f.level}'),
+                        label: Text(f.label),
+                        selected: f.level == floor.level,
+                        onSelected: (_) => _pickFloor(f.level),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
+            )
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(label: Text(floor.label)),
             ),
-          )
-        else
-          Chip(label: Text(floor.label)),
-        const SizedBox(height: 4),
-        _networkPicker(),
-        if (_noDataHere(floor))
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'No readings of this network on this floor.',
-              style: TextStyle(fontSize: 12),
-            ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(child: _networkPicker()),
+              const SizedBox(width: 4),
+              IconButton(
+                key: const ValueKey('display-settings'),
+                tooltip: 'Display: opacity, minimum signal, contour lines',
+                icon: const Icon(Icons.tune),
+                onPressed: _showDisplaySettings,
+              ),
+              IconButton(
+                key: const ValueKey('map-style'),
+                tooltip: _tiles.usesMapbox
+                    ? 'Map style: ${_style.label}'
+                    : 'Map style: street map',
+                icon: const Icon(Icons.layers_outlined),
+                onPressed: _showStylePicker,
+              ),
+            ],
           ),
-        const SizedBox(height: 4),
-        Wrap(
-          spacing: 8,
-          children: [
-            FilterChip(
-              key: const ValueKey('layer-cells'),
-              label: const Text('Coverage'),
-              selected: _showCells,
-              onSelected: (v) => setState(() => _showCells = v),
+          if (_noDataHere(floor))
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'No readings of this network on this floor.',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
             ),
-            ActionChip(
-              key: const ValueKey('display-settings'),
-              avatar: const Icon(Icons.tune, size: 18),
-              label: const Text('Display'),
-              onPressed: _showDisplaySettings,
-            ),
-            FilterChip(
-              key: const ValueKey('layer-aps'),
-              label: const Text('Access points'),
-              selected: _showAps,
-              onSelected: (v) => setState(() => _showAps = v),
-            ),
-            FilterChip(
-              key: const ValueKey('layer-trail'),
-              label: const Text('Walk'),
-              selected: _showTrail,
-              onSelected: (v) => setState(() => _showTrail = v),
-            ),
-          ],
+        ],
+      ),
+    );
+  }
+
+  /// The bottom card: which layers are drawn.
+  Widget _toolbar() {
+    return Container(
+      key: const ValueKey('toolbar'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: _panel(),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 0,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          FilterChip(
+            key: const ValueKey('layer-cells'),
+            label: const Text('Coverage'),
+            selected: _showCells,
+            onSelected: (v) => setState(() => _showCells = v),
+          ),
+          FilterChip(
+            key: const ValueKey('layer-aps'),
+            label: const Text('Access points'),
+            selected: _showAps,
+            onSelected: (v) => setState(() => _showAps = v),
+          ),
+          FilterChip(
+            key: const ValueKey('layer-trail'),
+            label: const Text('Walk'),
+            selected: _showTrail,
+            onSelected: (v) => setState(() => _showTrail = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Satellite, streets light or streets dark. Without a Mapbox token there is
+  /// only the OpenStreetMap street map, so the choices are off and say why.
+  void _showStylePicker() {
+    final mapbox = _baseTiles.usesMapbox;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'Map style',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+              ),
+              if (!mapbox)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Text(
+                    'Styles need a Mapbox token. This build shows the '
+                    'OpenStreetMap street map.',
+                    key: ValueKey('style-note'),
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+              for (final style in MapStyle.values)
+                ListTile(
+                  key: ValueKey('style-${style.name}'),
+                  enabled: mapbox,
+                  leading: Icon(switch (style) {
+                    MapStyle.satellite => Icons.satellite_alt_outlined,
+                    MapStyle.streetsLight => Icons.light_mode_outlined,
+                    MapStyle.streetsDark => Icons.dark_mode_outlined,
+                  }),
+                  title: Text(style.label),
+                  trailing: mapbox && style == _style
+                      ? const Icon(Icons.check, color: AppColors.accent)
+                      : null,
+                  selected: mapbox && style == _style,
+                  onTap: () {
+                    MapStylePreference.current = style;
+                    setState(() => _style = style);
+                    Navigator.of(sheetContext).pop();
+                  },
+                ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -687,8 +801,8 @@ class _MapScreenState extends State<MapScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
@@ -796,98 +910,149 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// The colour ramp as a gradient bar, strong on the left, with dBm ticks,
-  /// then the surveyor's thresholds as text.
+  /// then the surveyor's thresholds as text. Collapsed it is a chip with a
+  /// small bar; a phone starts collapsed so it does not cover the map.
   Widget _legend(Thresholds? t) {
+    final open =
+        _legendChoice ?? MediaQuery.sizeOf(context).width > _wideScreenDp;
+    final gradient = LinearGradient(
+      colors: [for (final s in rampStops) Color.fromARGB(255, s.r, s.g, s.b)],
+      stops: [for (final s in rampStops) rampFraction(s.dbm.toDouble())],
+    );
+    final header = Semantics(
+      button: true,
+      expanded: open,
+      label: 'Legend',
+      excludeSemantics: true,
+      child: InkWell(
+        key: const ValueKey('legend-toggle'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _legendChoice = !open),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: kTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!open) ...[
+                  Container(
+                    key: const ValueKey('legend-ramp-mini'),
+                    width: 56,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: Colors.black45, width: 0.5),
+                      gradient: gradient,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                const Text('Legend', style: TextStyle(fontSize: 13)),
+                Icon(
+                  open ? Icons.expand_more : Icons.expand_less,
+                  size: 20,
+                  color: AppColors.textMuted,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
     const barWidth = 180.0;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      key: const ValueKey('legend'),
+      decoration: _panel(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            key: const ValueKey('legend-ramp'),
-            width: barWidth,
-            height: 10,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: Colors.black45, width: 0.5),
-              gradient: LinearGradient(
-                colors: [
-                  for (final s in rampStops) Color.fromARGB(255, s.r, s.g, s.b),
-                ],
-                stops: [
-                  for (final s in rampStops) rampFraction(s.dbm.toDouble()),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(
-            width: barWidth,
-            height: 14,
-            child: Stack(
-              children: [
-                for (final tick in legendTicks)
-                  Positioned(
-                    // Centred on its place on the bar, but kept inside it.
-                    left: (rampFraction(tick.toDouble()) * barWidth - 12).clamp(
-                      0.0,
-                      barWidth - 24,
-                    ),
-                    width: 24,
-                    child: Text(
-                      '$tick',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: AppColors.textMuted,
-                      ),
+          if (open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    key: const ValueKey('legend-ramp'),
+                    width: barWidth,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: Colors.black45, width: 0.5),
+                      gradient: gradient,
                     ),
                   ),
-              ],
+                  SizedBox(
+                    width: barWidth,
+                    height: 14,
+                    child: Stack(
+                      children: [
+                        for (final tick in legendTicks)
+                          Positioned(
+                            // Centred on its place on the bar, but kept inside it.
+                            left:
+                                (rampFraction(tick.toDouble()) * barWidth - 12)
+                                    .clamp(0.0, barWidth - 24),
+                            width: 24,
+                            child: Text(
+                              '$tick',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    t == null ? 'Good' : 'Good ≥ ${t.goodDbm} dBm',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  Text(
+                    t == null ? 'Dead' : 'Dead < ${t.deadDbm} dBm',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  Text(
+                    'Lines every $defaultContourStepDb dBm',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        color: Color.fromARGB(
+                          255,
+                          rampStops[3].r,
+                          rampStops[3].g,
+                          rampStops[3].b,
+                        ).withValues(alpha: confidenceAlpha(0, full: 0.75)),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Faded = few readings',
+                        key: ValueKey('legend-faded'),
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            t == null ? 'Good' : 'Good ≥ ${t.goodDbm} dBm',
-            style: const TextStyle(fontSize: 12),
-          ),
-          Text(
-            t == null ? 'Dead' : 'Dead < ${t.deadDbm} dBm',
-            style: const TextStyle(fontSize: 12),
-          ),
-          Text(
-            'Lines every $defaultContourStepDb dBm',
-            style: const TextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                color: Color.fromARGB(
-                  255,
-                  rampStops[3].r,
-                  rampStops[3].g,
-                  rampStops[3].b,
-                ).withValues(alpha: confidenceAlpha(0, full: 0.75)),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Faded = few readings',
-                key: ValueKey('legend-faded'),
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
+          header,
         ],
       ),
     );
   }
 }
+
+/// Screens wider than this (dp) start with the legend open.
+const double _wideScreenDp = 600;
