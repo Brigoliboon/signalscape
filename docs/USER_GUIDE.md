@@ -161,6 +161,15 @@ The controls are in two boxes so they stay out of each other's way:
 - The **2D map | 3D** switch at the top right goes to the 3D view.
 - If the survey has not been processed yet the screen says "Not processed yet", and a Surveyor sees **Process now**.
 
+## 12a. Survey summary and export
+
+The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D view opens **Survey summary** for that survey.
+
+- **All floors** at the top: how many floors, how many readings were used (after cleaning) out of how many were taken, the area covered, the number of estimated access points, and a bar splitting the covered area into **Good**, **Fair** and **Dead** with the percentages. The percentages over all floors are weighted by each floor's area.
+- One card per floor (lowest first) with the same numbers for that floor. A floor with no cleaned readings says "No coverage to describe".
+- **Export readings (CSV)** downloads every cleaned reading of the survey (time, position, network, signal) and opens the phone's share sheet, so you can save it to Files or Drive or send it by email or chat. **Export coverage (GeoJSON)** does the same for the coverage cells and access points.
+- A survey that is not processed yet shows "Not processed yet"; a surveyor sees **Process now**. If the summary or an export cannot load, the screen says why ("You're offline" or the server's message) and you can try again.
+
 ## 13. Tips for better maps
 
 - **Turn off Wi-Fi scan throttling.** Android normally allows about 4 scans every 2 minutes, which gives few readings. On the phone: Settings, Developer options, switch off "Wi-Fi scan throttling" (enable Developer options first by tapping Build number 7 times in About phone). You get a scan every few steps and a much denser map. If the app shows the "Android is limiting Wi-Fi scans" message, this is the fix.

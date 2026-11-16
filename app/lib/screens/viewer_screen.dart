@@ -5,6 +5,7 @@ import '../data/api_client.dart';
 import '../theme.dart';
 import '../widgets/view_switch.dart';
 import 'map_screen.dart';
+import 'survey_summary_screen.dart';
 
 /// The Three.js coverage page served by the API (FR-16), in a WebView.
 class ViewerScreen extends StatefulWidget {
@@ -62,6 +63,20 @@ class _ViewerScreenState extends State<ViewerScreen> {
       appBar: AppBar(
         title: const Text('Coverage'),
         actions: [
+          IconButton(
+            key: const ValueKey('open-summary'),
+            tooltip: 'Summary and export',
+            icon: const Icon(Icons.summarize_outlined),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => SurveySummaryScreen(
+                  api: widget.api,
+                  surveyId: widget.surveyId,
+                  canProcess: widget.canProcess,
+                ),
+              ),
+            ),
+          ),
           ViewSwitch(
             is3d: true,
             onSwitch: () => Navigator.of(context).pushReplacement(
