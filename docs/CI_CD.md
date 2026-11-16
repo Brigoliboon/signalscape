@@ -6,6 +6,14 @@ Related docs: [DEPLOYMENT.md](DEPLOYMENT.md) (the server and runner setup), [BRA
 
 ## The whole flow
 
+From a push on the developer laptop, through the GitHub PR and CI jobs, to a deploy on the Ubuntu VM:
+
+![SignalScape CI/CD and deployment: developer laptop and git push, GitHub PR, GitHub Actions CI jobs, branch protection, merge, then the self-hosted runner and Docker Compose with Caddy, the API and PostgreSQL](images/architecture/signalscape_cicd_deployment.png)
+
+[SVG](images/architecture/signalscape_cicd_deployment.svg)
+
+The chart below is the same flow with more detail on CD (the image publish to GHCR, migrations and the smoke tests). Server setup is in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ```mermaid
 flowchart TD
     dev["Developer device<br/>branch, edit, run tests locally"] -->|git push| branch["Feature branch on GitHub"]

@@ -14,6 +14,25 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 - Role-based access: Admin and Surveyor (Viewer optional)
 - Signal bands: good above -67 dBm, fair from -67 to -80 dBm, dead below -80 dBm
 
+## App preview
+
+The 3D coverage view (smooth heatmap, trail, access-point markers, and the grouped Layers controls). More on using the map: [User guide](docs/USER_GUIDE.md).
+
+<table>
+  <tr>
+    <td align="center" valign="top">
+      <img src="docs/images/preview/map_ui_3d_mobile_layers.png" alt="Mobile 3D coverage view with the Layers sheet open, showing network, floor and heatmap controls" width="280" />
+      <br />
+      <em>Mobile, Layers sheet open</em>
+    </td>
+    <td align="center" valign="top">
+      <img src="docs/images/preview/map_ui_3d_desktop.png" alt="Desktop 3D coverage view with the toolbar, legend and coverage heatmap" width="520" />
+      <br />
+      <em>Desktop</em>
+    </td>
+  </tr>
+</table>
+
 ## Stack
 | Part | Tech |
 |---|---|
@@ -22,6 +41,28 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 | Database | PostgreSQL |
 | Tests | pytest with pytest-cov, `flutter test` |
 | Deploy | Docker Compose, Caddy (automatic HTTPS), GitHub Actions with a self-hosted runner |
+
+## Architecture
+
+How the pieces connect, how a scan becomes a heatmap, and how a change gets to the live server. The same images are in the docs linked under each preview.
+
+**System architecture** — the Flutter Android app, Mapbox / OpenStreetMap tiles, Caddy, FastAPI, PostgreSQL and the three.js viewer.
+
+![SignalScape system architecture: phone, tile providers, VM and browser](docs/images/architecture/signalscape_system_architecture.png)
+
+More: [Design](docs/DESIGN.md#architecture-overview) ([SVG](docs/images/architecture/signalscape_system_architecture.svg))
+
+**Data flow** — from a Wi-Fi scan on the phone, through upload and the six processing stages, to the 2D and 3D heatmaps.
+
+![SignalScape data flow from scan to heatmap](docs/images/architecture/signalscape_data_flow.png)
+
+More: [Design, processing math](docs/DESIGN.md#5-processing-math) ([SVG](docs/images/architecture/signalscape_data_flow.svg))
+
+**CI/CD and deployment** — laptop to GitHub PR and Actions, then the self-hosted runner and Docker Compose on the Ubuntu VM.
+
+![SignalScape CI/CD and deployment flow](docs/images/architecture/signalscape_cicd_deployment.png)
+
+More: [CI/CD guide](docs/CI_CD.md) and [Deployment setup](docs/DEPLOYMENT.md) ([SVG](docs/images/architecture/signalscape_cicd_deployment.svg))
 
 ## Repo layout
 ```
@@ -102,9 +143,9 @@ All in `docs/`:
 
 | Doc | What it covers |
 |---|---|
-| [DESIGN.md](docs/DESIGN.md) | Database, API, processing maths, offline sync (week 2 design) |
+| [DESIGN.md](docs/DESIGN.md) | Database, API, processing maths, offline sync, and the system and data-flow diagrams |
 | [LOCAL_DEV.md](docs/LOCAL_DEV.md) | Set up the API, database and app on your machine; run the tests |
-| [CI_CD.md](docs/CI_CD.md) | The full flow from a push to the live server, job by job |
+| [CI_CD.md](docs/CI_CD.md) | The full flow from a push to the live server, job by job (with the CI/CD diagram) |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | The VM, runner, Docker Compose, Caddy and TLS, SSH access, first admin |
 | [BRANCHING.md](docs/BRANCHING.md) | Branch names, pull requests, Actions and branch protection |
 | [CONFIG_AND_SECRETS.md](docs/CONFIG_AND_SECRETS.md) | Every environment variable and GitHub secret (names only) |
