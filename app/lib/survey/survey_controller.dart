@@ -24,6 +24,7 @@ import '../data/local_db.dart';
 import '../data/models.dart';
 import '../widgets/trail_view.dart';
 import 'finish.dart';
+import 'gone_survey.dart';
 
 enum SurveyPhase { acquiring, ready, active, paused, ending, endFailed, done }
 
@@ -87,6 +88,10 @@ class SurveyController extends ChangeNotifier {
   String? syncError;
   String? message;
   String? error;
+
+  /// True when the last upload or complete failed with HTTP 404: the
+  /// survey, or its floor or building, is gone on the server.
+  bool surveyGone = false;
   int? latestRssi;
   double pulse = 0;
   final List<TrailPoint> trail = [];
@@ -742,6 +747,10 @@ class SurveyController extends ChangeNotifier {
         _syncFailures++;
         syncError = e.message;
         online = false;
+        if (e.isGone) {
+          surveyGone = true;
+          error = localSurveyGoneMessage;
+        }
         // A retryable failure waits 5 s, 10 s, 30 s, then 2 min. Anything else
         // needs a person, so the engine pauses for the longest wait.
         _nextSyncAt = DateTime.now().add(
@@ -770,16 +779,42 @@ class SurveyController extends ChangeNotifier {
       held = 0;
       await finishSurvey(api: api, db: db, engine: engine, surveyId: id);
       phase = SurveyPhase.done;
+      surveyGone = false;
       _changed();
       return true;
     } on SyncException catch (e) {
-      error = 'Upload not finished: ${e.message}';
+      if (e.isGone) {
+        surveyGone = true;
+        error = localSurveyGoneMessage;
+      } else {
+        surveyGone = false;
+        error = 'Upload not finished: ${e.message}';
+      }
     } on ApiException catch (e) {
-      error = e.message;
+      if (isGoneStatus(e.statusCode)) {
+        surveyGone = true;
+        error = localSurveyGoneMessage;
+      } else {
+        surveyGone = false;
+        error = e.message;
+      }
     }
     phase = SurveyPhase.endFailed;
     _changed();
     return false;
+  }
+
+  /// Forgets this survey's local readings and the resume note after the
+  /// floor, building or survey was deleted on the server.
+  Future<void> discardLocal() async {
+    final id = surveyId;
+    if (id == null) return;
+    await db.discardSurvey(id);
+    surveyGone = false;
+    error = null;
+    syncError = null;
+    phase = SurveyPhase.done;
+    _changed();
   }
 
   @override

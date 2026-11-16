@@ -32,7 +32,7 @@ Open the app. The first screen says **SIGNALSCAPE**, "Map your building's Wi-Fi,
 - New accounts are Surveyors. An administrator can change roles (see [API_GUIDE.md](API_GUIDE.md)).
 - To leave, tap **Sign out** at the top right of the **Buildings** screen.
 
-## 1a. Your profile and settings
+## 2. Your profile and settings
 
 On the **Buildings** screen tap the **person icon** at the top right (next to **Sign out**) to open **Profile and settings**.
 
@@ -42,11 +42,11 @@ On the **Buildings** screen tap the **person icon** at the top right (next to **
 - **Sign out** does the same as the button on the Buildings screen.
 - **Delete account** removes your account and everything it owns: your buildings, floors, floor plans and all your surveys with their readings, heatmaps and access points. The app asks first and you must type **DELETE** before **Delete account** turns on. When it is done, readings saved on this phone that were never uploaded are removed too and you are back at the sign-in screen. This cannot be undone. If the server refuses (for example you are the only active Admin: "Cannot delete the last active admin") nothing is deleted and you stay signed in. Offline, it says "You're offline" and deletes nothing.
 
-## 2. Privacy notice (first time)
+## 3. Privacy notice (first time)
 
 Before your first survey the app shows **Before your first survey** with the **Privacy notice · RA 10173**. It explains why the app asks for data, what it collects (your name, email and hashed password; GPS only while a survey runs, a start fix; Wi-Fi names, signal strengths and the walk), who can see it (you and the server's administrators), how it is protected, and your rights. Read it, tick "I have read the privacy notice and I agree to the use of my data as described.", and tap **Agree and continue**. **Not now** signs you out, and no survey can start until you agree. You are asked only once.
 
-## 3. Buildings
+## 4. Buildings
 
 The **Buildings** screen lists your buildings. You can:
 
@@ -57,7 +57,7 @@ The **Buildings** screen lists your buildings. You can:
 
 An empty list says "No buildings yet. Add the first one to start surveying." (Viewer accounts see "No buildings here. Viewers see surveys that are shared with them, not the building list.")
 
-## 3a. Managing users (Admins only)
+## 5. Managing users (Admins only)
 
 If your role is **Admin**, the **Buildings** screen has a **Manage users** card under the "SIGNED IN AS" line. Surveyors and Viewers do not see it, and the server refuses user management to them anyway.
 
@@ -70,7 +70,7 @@ If your role is **Admin**, the **Buildings** screen has a **Manage users** card 
 - Your own row says "(you)". For your own account the role chips are off and there is no Deactivate or Delete: use **Profile and settings** for your name, password or to delete your account.
 - Offline, a change says "You're offline. Nothing was changed." and the list is loaded again when you tap **Try again**.
 
-## 4. Floors and floor plans
+## 6. Floors and floor plans
 
 On the building page tap **Add floor**:
 
@@ -82,9 +82,9 @@ On the building page tap **Add floor**:
 
 Add a floor for every floor you will walk, before you start. Two floors cannot have the same level in one building.
 
-**Delete floor:** the bin icon next to a floor's pencil asks first. It deletes the floor, its floor plan and the readings, heatmaps and access points recorded on that floor; surveys of the other floors are kept. This cannot be undone. Offline, or if the server refuses, nothing is deleted and the screen says why.
+**Delete floor:** the bin icon next to a floor's pencil asks first. It deletes the floor, its floor plan and the readings, heatmaps and access points recorded on that floor; surveys of the other floors are kept. This cannot be undone. If you had left a survey of that floor unfinished on this phone, its saved readings are removed too, since they could no longer be uploaded. Offline, or if the server refuses, nothing is deleted and the screen says why.
 
-## 5. Starting a survey
+## 7. Starting a survey
 
 On the building page, under **Start a survey**, choose the **Floor to start on** and tap **Continue to survey**.
 
@@ -100,7 +100,7 @@ Stand where you want the map to start. Near a window or doorway the GPS fix is u
 
 The top right shows **ONLINE** or **OFFLINE**.
 
-## 6. Walking and scanning
+## 8. Walking and scanning
 
 The status changes to **SCANNING**. Walk at a normal pace with the phone held steadily, and the app does the rest.
 
@@ -111,7 +111,7 @@ The status changes to **SCANNING**. Walk at a normal pace with the phone held st
 - The line **Sync** shows "all saved to the server" or how many readings are waiting. Readings are saved on the phone first and uploaded in batches, so a bad connection does not lose data. Offline work uploads when the phone is back online.
 - **Pause** stops scanning (for a break) and **Resume** continues.
 
-## 7. Checkpoints: fixing drift
+## 9. Checkpoints: fixing drift
 
 Step counting drifts over time. Tap **Add checkpoint (fix drift)** now and then:
 
@@ -120,7 +120,7 @@ Step counting drifts over time. Tap **Add checkpoint (fix drift)** now and then:
 
 Good places for a checkpoint are next to windows, doors and stairwell openings. Readings wait on the phone (up to 4 minutes) for the next checkpoint to be corrected before they upload, so checkpoint at least every few minutes.
 
-## 8. Changing floors (barometer)
+## 10. Changing floors (barometer)
 
 The **FLOOR** box on the survey screen shows the floor you are on. Change it by hand at any time with the dropdown; your choice always wins.
 
@@ -128,23 +128,23 @@ If the phone has a barometer, the line says "Barometer on: floor changes are det
 
 Take a checkpoint when you arrive on a new floor if you can.
 
-## 9. Live preview
+## 11. Live preview
 
 About once a minute, while the phone is online, the app asks the server for a quick heatmap of what you have collected and draws it under your trail as a smooth colour field (red strong, through yellow and green, to blue weak, the same colours as the maps) ("Heatmap preview · updated 14:32"). Offline it keeps the last one ("Heatmap preview: offline, showing the last one"). Until the first one arrives it says "Heatmap preview appears here about every minute while online." The preview is a guide to where signal is missing; the final map is made when you end the survey.
 
-## 10. Ending the survey
+## 12. Ending the survey
 
-Tap **End survey**. The app releases held readings, uploads everything left ("Uploading n readings, then processing…"), marks the survey completed, and the server builds the coverage maps and estimates the access points. When it finishes, the app opens the **3D view** of your survey by itself (section 11), and from there the **2D map** (section 12).
-
-**Look at the results before you leave those screens.** The app does not have a survey history screen yet, so once you go back to **Buildings** there is no button to reopen that survey's maps.
+Tap **End survey**. The app releases held readings, uploads everything left ("Uploading n readings, then processing…"), marks the survey completed, and the server builds the coverage maps and estimates the access points. When it finishes, the app opens the **3D view** of your survey by itself (section 14), and from there the **2D map** (section 15) and the **survey summary** (section 16). You can also reopen any survey later from **Survey history** (section 13) on the Buildings screen.
 
 If the upload cannot finish (for example no connection), you see "Upload not finished: …" and the status **NOT FINISHED**. Your data is still saved on the phone. Tap **Try finishing again** when you are online.
 
-If you close the app or the phone dies mid-survey, the next time you open the **Buildings** screen it asks "Unfinished survey" with **Resume**, **End survey** or **Later**. **Resume** returns you to the survey paused: stand where you are on the map, add a checkpoint to re-sync your position, then press **Resume**. **End survey** uploads and processes what was collected; when it is done the **Buildings** screen says "Survey finished and processed." with a **View 3D** button (tap it right away, it is the only way back in).
+If you close the app or the phone dies mid-survey, the next time you open the **Buildings** screen it asks "Unfinished survey" with **Resume**, **End survey** or **Later**. **Resume** returns you to the survey paused: stand where you are on the map, add a checkpoint to re-sync your position, then press **Resume**. **End survey** uploads and processes what was collected; when it is done the **Buildings** screen says "Survey finished and processed." with a **View 3D** button (you can also open it later from **Survey history**).
+
+If the floor or building this survey was on has been deleted, the app cannot resume or upload it. It explains that and offers **Discard**, which removes the readings saved on this phone. **Keep** leaves them for now. The same offer appears if you try to finish a survey and the server answers that it is gone.
 
 Pressing back during a survey asks "Leave this survey?" ("Readings already taken stay on this phone and keep uploading…"). **Keep surveying** stays; **Leave** goes back.
 
-## 10a. Survey history
+## 13. Survey history
 
 The **clock icon** at the top right of the Buildings screen opens **Survey history**: every survey you may see, newest first. A surveyor sees their own surveys, an admin sees all of them, and a viewer sees the ones shared with them.
 
@@ -155,7 +155,7 @@ The **clock icon** at the top right of the Buildings screen opens **Survey histo
   - **Delete survey** (surveyors and admins; not viewers, and a surveyor only for their own surveys) asks you to confirm first, then removes the survey for good with its readings, checkpoints, heatmaps and estimated access points. If the phone still had that survey saved as unfinished, that note is cleared too.
 - If the list cannot load, the screen says why ("You're offline" or the server's message) and **Try again** asks again.
 
-## 11. The 3D view
+## 14. The 3D view
 
 **Coverage in 3D** shows your floors stacked, each with a smooth heatmap, estimated access points and your walk.
 
@@ -170,7 +170,7 @@ The **clock icon** at the top right of the Buildings screen opens **Survey histo
   - **Markers:** Estimated access points, Walked path, start and end (green Start, red End), and Highlight dead zones.
 - The **2D map | 3D** switch at the top right of the app bar goes to the map.
 
-## 12. The 2D satellite map
+## 15. The 2D satellite map
 
 **Coverage** (2D map) draws the same results on a satellite map with street labels (Mapbox, when the app build has a token; otherwise a street map from OpenStreetMap).
 
@@ -187,7 +187,7 @@ The controls are in two boxes so they stay out of each other's way:
 - The **2D map | 3D** switch at the top right goes to the 3D view.
 - If the survey has not been processed yet the screen says "Not processed yet", and a Surveyor sees **Process now**.
 
-## 12a. Survey summary and export
+## 16. Survey summary and export
 
 The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D view opens **Survey summary** for that survey.
 
@@ -196,7 +196,7 @@ The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D
 - **Export readings (CSV)** downloads every cleaned reading of the survey (time, position, network, signal) and opens the phone's share sheet, so you can save it to Files or Drive or send it by email or chat. **Export coverage (GeoJSON)** does the same for the coverage cells and access points.
 - A survey that is not processed yet shows "Not processed yet"; a surveyor sees **Process now**. If the summary or an export cannot load, the screen says why ("You're offline" or the server's message) and you can try again.
 
-## 13. Tips for better maps
+## 17. Tips for better maps
 
 - **Turn off Wi-Fi scan throttling.** Android normally allows about 4 scans every 2 minutes, which gives few readings. On the phone: Settings, Developer options, switch off "Wi-Fi scan throttling" (enable Developer options first by tapping Build number 7 times in About phone). You get a scan every few steps and a much denser map. If the app shows the "Android is limiting Wi-Fi scans" message, this is the fix.
 - **Walk slowly** and steadily, and cover corridors and rooms along their length, because only places you walked get a colour.
@@ -207,7 +207,7 @@ The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D
 
 ## What the app does not have yet
 
-These parts of the milestone plan ([IMPLEMENTATION.md](../IMPLEMENTATION.md)) are not built, so you will not find them in the app: a survey history list, a survey summary screen with CSV export (the CSV export exists in the API), profile and settings with delete account, an admin user screen, and deleting buildings or floors from the app. Tapping a position on the floor plan as a checkpoint is also not built; checkpoints use the GPS fix.
+The planned screens in the milestone plan ([IMPLEMENTATION.md](../IMPLEMENTATION.md)) are in the app. One thing is not built: tapping a position on the floor plan as a checkpoint. Checkpoints use the GPS fix.
 
 ## Not verified
 

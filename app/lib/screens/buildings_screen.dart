@@ -11,6 +11,7 @@ import '../data/models.dart';
 import '../data/session.dart';
 import '../data/user_models.dart';
 import '../survey/finish.dart';
+import '../survey/gone_survey.dart';
 import '../theme.dart';
 import 'building_detail_screen.dart';
 import 'building_form_screen.dart';
@@ -66,6 +67,7 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
   bool _loading = false;
   String? _error;
   ActiveSurvey? _unfinished;
+  bool _unfinishedGone = false;
   int _generation = 0;
 
   ApiClient get _api => widget.session.api;
@@ -183,8 +185,19 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       final db = await widget.openDb();
       final a = await db.activeFor(widget.session.user!.id);
       if (!mounted) return;
-      setState(() => _unfinished = a);
-      if (a != null && ask) await _askAboutUnfinished(a);
+      final gone = a != null && await localSurveyTargetGone(_api, a);
+      if (!mounted) return;
+      setState(() {
+        _unfinished = a;
+        _unfinishedGone = gone;
+      });
+      if (a != null && ask) {
+        if (gone) {
+          await _askToDiscard(a);
+        } else {
+          await _askAboutUnfinished(a);
+        }
+      }
     } catch (_) {
       // No local database (or it cannot be read): nothing to resume.
     }
@@ -228,25 +241,26 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
     try {
       final b = await _api.building(a.buildingId);
       if (!mounted) return;
-      if (b.floors.isEmpty) {
-        _toast('That building has no floors any more.');
+      final floor = b.floors.where((f) => f.id == a.floorId);
+      if (floor.isEmpty) {
+        await _askToDiscard(a);
         return;
       }
-      final floor = b.floors.firstWhere(
-        (f) => f.id == a.floorId,
-        orElse: () => b.floors.first,
-      );
       await SurveyScreen.open(
         context,
         session: widget.session,
         building: b,
         floors: b.floors,
-        floor: floor,
+        floor: floor.first,
         resume: a,
       );
       if (mounted) await _findUnfinished(false);
     } on ApiException catch (e) {
-      _toast('Could not load the building: ${e.message}');
+      if (isGoneStatus(e.statusCode)) {
+        await _askToDiscard(a);
+      } else {
+        _toast('Could not load the building: ${e.message}');
+      }
     }
   }
 
@@ -286,10 +300,57 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
           ),
         );
     } on SyncException catch (e) {
-      _toast('Upload not finished: ${e.message} It is still saved here.');
+      if (e.isGone) {
+        await _askToDiscard(a);
+      } else {
+        _toast('Upload not finished: ${e.message} It is still saved here.');
+      }
     } on ApiException catch (e) {
-      _toast(e.message);
+      if (isGoneStatus(e.statusCode)) {
+        await _askToDiscard(a);
+      } else {
+        _toast(e.message);
+      }
     }
+  }
+
+  Future<void> _askToDiscard(ActiveSurvey a) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        title: const Text(localSurveyGoneTitle),
+        content: const Text(localSurveyGoneMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            key: const ValueKey('discard-local-survey'),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) await _discard(a);
+  }
+
+  Future<void> _discard(ActiveSurvey a) async {
+    try {
+      final db = await widget.openDb();
+      await db.discardSurvey(a.surveyId);
+    } catch (_) {
+      // Nothing else we can do; the card is still hidden below.
+    }
+    if (!mounted) return;
+    setState(() {
+      _unfinished = null;
+      _unfinishedGone = false;
+    });
+    _toast(localSurveyDiscardedMessage);
   }
 
   void _toast(String text) {
@@ -380,8 +441,10 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
               if (_unfinished != null) ...[
                 _UnfinishedCard(
                   survey: _unfinished!,
+                  gone: _unfinishedGone,
                   onResume: () => _resume(_unfinished!),
                   onEnd: () => _endUnfinished(_unfinished!),
+                  onDiscard: () => _askToDiscard(_unfinished!),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -518,13 +581,17 @@ class _EmptyState extends StatelessWidget {
 class _UnfinishedCard extends StatelessWidget {
   const _UnfinishedCard({
     required this.survey,
+    required this.gone,
     required this.onResume,
     required this.onEnd,
+    required this.onDiscard,
   });
 
   final ActiveSurvey survey;
+  final bool gone;
   final VoidCallback onResume;
   final VoidCallback onEnd;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -540,27 +607,39 @@ class _UnfinishedCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${survey.buildingName} · ${survey.readings} readings',
+            gone
+                ? localSurveyGoneMessage
+                : '${survey.buildingName} · ${survey.readings} readings',
             style: const TextStyle(color: AppColors.textMuted),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: onResume,
-                  child: const Text('Resume'),
-                ),
+          if (gone)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: const ValueKey('discard-unfinished'),
+                onPressed: onDiscard,
+                child: const Text('Discard'),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onEnd,
-                  child: const Text('End survey'),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onResume,
+                    child: const Text('Resume'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onEnd,
+                    child: const Text('End survey'),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

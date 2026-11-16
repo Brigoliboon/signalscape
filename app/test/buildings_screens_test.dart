@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:signalscape_mobile/core/plan_image.dart';
+import 'package:signalscape_mobile/core/sync_engine.dart';
 import 'package:signalscape_mobile/data/active_survey.dart';
 import 'package:signalscape_mobile/data/local_db.dart';
 import 'package:signalscape_mobile/data/models.dart';
@@ -563,9 +564,30 @@ void main() {
       await tester.pump();
     }
 
+    Session stillThere({http.Response? complete}) {
+      return signedIn((req) async {
+        if (req.url.path == '/api/buildings') {
+          return jsonResponse(pageJson([], 0, 1));
+        }
+        if (req.url.path == '/api/buildings/b1') {
+          return jsonResponse(
+            buildingJson(
+              'b1',
+              'Main Tower',
+              floors: [floorJson('f0', 0, 'Ground')],
+            ),
+          );
+        }
+        if (req.method == 'PATCH' && req.url.path == '/api/surveys/s1') {
+          return complete ?? jsonResponse({});
+        }
+        return jsonResponse({});
+      });
+    }
+
     testWidgets('the next launch offers to resume or end it', (tester) async {
       final db = await dbWithSurvey(tester);
-      final session = signedIn((_) async => jsonResponse(pageJson([], 0, 1)));
+      final session = stillThere();
       await mount(
         tester,
         BuildingsScreen(session: session, openDb: () async => db),
@@ -587,7 +609,7 @@ void main() {
 
     testWidgets('Later keeps a card on the home screen', (tester) async {
       final db = await dbWithSurvey(tester);
-      final session = signedIn((_) async => jsonResponse(pageJson([], 0, 1)));
+      final session = stillThere();
       await mount(
         tester,
         BuildingsScreen(session: session, openDb: () async => db),
@@ -607,9 +629,19 @@ void main() {
       final calls = <String>[];
       final session = signedIn((req) async {
         calls.add('${req.method} ${req.url.path}');
-        return req.url.path == '/api/buildings'
-            ? jsonResponse(pageJson([], 0, 1))
-            : jsonResponse({});
+        if (req.url.path == '/api/buildings') {
+          return jsonResponse(pageJson([], 0, 1));
+        }
+        if (req.url.path == '/api/buildings/b1') {
+          return jsonResponse(
+            buildingJson(
+              'b1',
+              'Main Tower',
+              floors: [floorJson('f0', 0, 'Ground')],
+            ),
+          );
+        }
+        return jsonResponse({});
       });
       await mount(
         tester,
@@ -622,6 +654,7 @@ void main() {
       await settleDb(tester);
       expect(calls, [
         'GET /api/buildings',
+        'GET /api/buildings/b1',
         'PATCH /api/surveys/s1',
         'POST /api/surveys/s1/process',
       ]);
@@ -642,6 +675,192 @@ void main() {
       );
       await settleDb(tester);
       expect(find.text('Unfinished survey'), findsNothing);
+    });
+
+    Session sessionFor({http.Response? building, http.Response? complete}) {
+      return signedIn((req) async {
+        if (req.url.path == '/api/buildings') {
+          return jsonResponse(pageJson([], 0, 1));
+        }
+        if (req.url.path == '/api/buildings/b1') {
+          return building ??
+              jsonResponse(
+                buildingJson(
+                  'b1',
+                  'Main Tower',
+                  floors: [floorJson('f0', 0, 'Ground')],
+                ),
+              );
+        }
+        if (req.method == 'PATCH' && req.url.path == '/api/surveys/s1') {
+          return complete ?? jsonResponse({});
+        }
+        if (req.url.path == '/api/surveys/s1/process') {
+          return jsonResponse({});
+        }
+        return jsonResponse({});
+      });
+    }
+
+    testWidgets('a deleted building offers to discard the local survey', (
+      tester,
+    ) async {
+      final db = await dbWithSurvey(tester);
+      await tester.runAsync(
+        () => db.add(SyncKind.readings, 's1', {'client_id': 'r1'}),
+      );
+      await mount(
+        tester,
+        BuildingsScreen(
+          session: sessionFor(
+            building: jsonResponse({'detail': 'Not found'}, 404),
+          ),
+          openDb: () async => db,
+        ),
+      );
+      await settleDb(tester);
+      final gone = find.byType(AlertDialog);
+      expect(gone, findsOneWidget);
+      expect(
+        find.descendant(
+          of: gone,
+          matching: find.text('This survey can no longer continue'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: gone,
+          matching: find.textContaining('floor or building'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: gone, matching: find.text('Resume')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('discard-local-survey')));
+      await settleDb(tester);
+      expect(find.text('The local survey was discarded.'), findsOneWidget);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNull);
+      expect(await tester.runAsync(() => db.pendingCount()), 0);
+    });
+
+    testWidgets('a deleted floor offers to discard the local survey', (
+      tester,
+    ) async {
+      final db = await dbWithSurvey(tester);
+      await mount(
+        tester,
+        BuildingsScreen(
+          session: sessionFor(
+            building: jsonResponse(
+              buildingJson(
+                'b1',
+                'Main Tower',
+                floors: [floorJson('f1', 1, 'First')],
+              ),
+            ),
+          ),
+          openDb: () async => db,
+        ),
+      );
+      await settleDb(tester);
+      expect(find.text('This survey can no longer continue'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('discard-local-survey')));
+      await settleDb(tester);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNull);
+    });
+
+    testWidgets('Keep leaves the unfinished survey on the phone', (
+      tester,
+    ) async {
+      final db = await dbWithSurvey(tester);
+      await mount(
+        tester,
+        BuildingsScreen(
+          session: sessionFor(
+            building: jsonResponse({'detail': 'Not found'}, 404),
+          ),
+          openDb: () async => db,
+        ),
+      );
+      await settleDb(tester);
+      await tester.tap(find.text('Keep'));
+      await tester.pumpAndSettle();
+      expect(find.text('Unfinished survey'), findsOneWidget);
+      expect(find.text('Discard'), findsOneWidget);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNotNull);
+    });
+
+    testWidgets('Resume from the card discards when the building is now gone', (
+      tester,
+    ) async {
+      final db = await dbWithSurvey(tester);
+      var gone = false;
+      final session = signedIn((req) async {
+        if (req.url.path == '/api/buildings') {
+          return jsonResponse(pageJson([], 0, 1));
+        }
+        if (req.url.path == '/api/buildings/b1') {
+          return gone
+              ? jsonResponse({'detail': 'Not found'}, 404)
+              : jsonResponse(
+                  buildingJson(
+                    'b1',
+                    'Main Tower',
+                    floors: [floorJson('f0', 0, 'Ground')],
+                  ),
+                );
+        }
+        return jsonResponse({});
+      });
+      await mount(
+        tester,
+        BuildingsScreen(session: session, openDb: () async => db),
+      );
+      await settleDb(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+      gone = true;
+      await tester.tap(find.text('Resume'));
+      await settleDb(tester);
+      expect(find.text('This survey can no longer continue'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('discard-local-survey')));
+      await settleDb(tester);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNull);
+    });
+
+    testWidgets('End survey offers to discard when the survey is gone', (
+      tester,
+    ) async {
+      final db = await dbWithSurvey(tester);
+      await mount(
+        tester,
+        BuildingsScreen(
+          session: sessionFor(
+            complete: jsonResponse({'detail': 'Not found'}, 404),
+          ),
+          openDb: () async => db,
+        ),
+      );
+      await settleDb(tester);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Resume'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'End survey'));
+      await tester.pump();
+      await settleDb(tester);
+      await settleDb(tester);
+      expect(find.text('This survey can no longer continue'), findsOneWidget);
+      expect(find.text('Try finishing again'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('discard-local-survey')));
+      await settleDb(tester);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNull);
     });
   });
 }

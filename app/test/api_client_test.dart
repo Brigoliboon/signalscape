@@ -143,7 +143,10 @@ void main() {
 
     test('other 4xx need a person', () async {
       for (final s in [400, 401, 403, 404, 409, 422]) {
-        expect((await failWith(s)).retryable, isFalse, reason: '$s');
+        final e = await failWith(s);
+        expect(e.retryable, isFalse, reason: '$s');
+        expect(e.statusCode, s, reason: '$s');
+        expect(e.isGone, s == 404, reason: '$s');
       }
     });
 

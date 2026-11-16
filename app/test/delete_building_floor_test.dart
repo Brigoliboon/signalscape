@@ -257,6 +257,65 @@ void main() {
     });
   });
 
+  group('deleting a floor forgets an unfinished survey of that floor', () {
+    ActiveSurvey survey(String floorId) => ActiveSurvey(
+      surveyId: 's1',
+      userId: 'u1',
+      buildingId: 'b1',
+      buildingName: 'Main',
+      floorId: floorId,
+      originLat: 14.5,
+      originLng: 121.0,
+      x: 0,
+      y: 0,
+      steps: 0,
+      checkpointSteps: 0,
+      startedMs: 1,
+      readings: 1,
+      checkpoints: 0,
+    );
+
+    Future<LocalDb> dbWithFloor(WidgetTester tester, String floorId) async {
+      useFfiSqlite();
+      final db = (await tester.runAsync(() async {
+        final d = await memoryDb();
+        await d.saveActive(survey(floorId));
+        await d.add(SyncKind.readings, 's1', {'client_id': 'r1'});
+        return d;
+      }))!;
+      addTearDown(() => db.close());
+      return db;
+    }
+
+    Future<void> deleteGround(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('delete-floor-f0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-delete')));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('is forgotten with its readings', (tester) async {
+      final db = await dbWithFloor(tester, 'f0');
+      await mount(tester, openDb: () async => db);
+      await deleteGround(tester);
+      expect(find.text('Ground was deleted.'), findsOneWidget);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNull);
+      expect(await tester.runAsync(() => db.pendingCount()), 0);
+    });
+
+    testWidgets('of another floor is left alone', (tester) async {
+      final db = await dbWithFloor(tester, 'f1');
+      await mount(tester, openDb: () async => db);
+      await deleteGround(tester);
+      expect(find.text('Ground was deleted.'), findsOneWidget);
+      expect(await tester.runAsync(() => db.activeFor('u1')), isNotNull);
+      expect(await tester.runAsync(() => db.pendingCount()), 1);
+    });
+  });
+
   testWidgets('a Viewer sees no delete buttons', (tester) async {
     await mount(tester, role: 'viewer');
     expect(key('delete-building'), findsNothing);

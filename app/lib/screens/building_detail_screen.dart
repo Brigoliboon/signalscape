@@ -157,19 +157,23 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
       _toast(_deleteFailure(e));
       return;
     }
-    await _forgetLocalSurvey(b.id);
+    await _forgetLocalSurvey(buildingId: b.id);
     if (!mounted) return;
     _toast('${b.name} was deleted.');
     Navigator.of(context).pop();
   }
 
-  /// A survey of the deleted building that this phone never finished can no
-  /// longer be uploaded, so its saved readings and the "resume" note go too.
-  Future<void> _forgetLocalSurvey(String buildingId) async {
+  /// A survey of the deleted building or floor that this phone never
+  /// finished can no longer be uploaded, so its saved readings and the
+  /// "resume" note go too.
+  Future<void> _forgetLocalSurvey({String? buildingId, String? floorId}) async {
     try {
       final db = await widget.openDb();
       final a = await db.activeFor(widget.session.user!.id);
-      if (a != null && a.buildingId == buildingId) {
+      if (a == null) return;
+      final sameBuilding = buildingId != null && a.buildingId == buildingId;
+      final sameFloor = floorId != null && a.floorId == floorId;
+      if (sameBuilding || sameFloor) {
         await db.discardSurvey(a.surveyId);
       }
     } catch (_) {
@@ -196,6 +200,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
       _toast(_deleteFailure(e));
       return;
     }
+    await _forgetLocalSurvey(floorId: f.id);
     if (!mounted) return;
     setState(() => _deleting = false);
     _toast('${f.label} was deleted.');
