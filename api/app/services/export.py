@@ -84,9 +84,12 @@ def coverage_features(
         values = np.array(
             [np.nan if v is None else v for v in grid.values], dtype=float
         )
+        # Grids stored before confidence existed have none; read as full.
+        confidence = grid.confidence or []
         for index in np.flatnonzero(~np.isnan(values)):
             row, col = divmod(int(index), grid.cols)
             rssi = float(values[index])
+            sure = confidence[index] if index < len(confidence) else None
             features.append(
                 {
                     "type": "Feature",
@@ -97,6 +100,7 @@ def coverage_features(
                         "level": proc.level_for(
                             rssi, grid.good_threshold_dbm, grid.dead_threshold_dbm
                         ),
+                        "confidence": 1.0 if sure is None else float(sure),
                         "floor_level": level_of_floor,
                         "bssid": None if grid.bssid is None else str(grid.bssid),
                     },

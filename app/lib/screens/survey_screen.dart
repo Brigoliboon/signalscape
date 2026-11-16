@@ -547,6 +547,23 @@ class _Legend extends StatelessWidget {
         item(SignalLevel.good, 'Good ≥ ${t.goodDbm}'),
         item(SignalLevel.fair, 'Fair ${t.goodDbm} to ${t.deadDbm}'),
         item(SignalLevel.dead, 'Dead < ${t.deadDbm} dBm'),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.circle,
+              size: 12,
+              color: levelColor(
+                SignalLevel.fair,
+              ).withValues(alpha: confidenceAlpha(0, full: 1)),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Faded = few readings',
+              style: mono(size: 12, color: AppColors.textPrimary),
+            ),
+          ],
+        ),
       ],
     );
   }

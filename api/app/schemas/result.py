@@ -32,7 +32,9 @@ class AccessPointRead(AccessPointOut):
 class CoverageRead(BaseModel):
     """One coverage grid. ``values`` is row-major, south row first, west column
     first; ``null`` means no data. ``origin_lat`` and ``origin_lng`` are the
-    south-west corner."""
+    south-west corner. ``confidence`` has the same layout with 0 to 1 for how well
+    readings back each cell (few or distant readings give less); ``null`` on grids
+    processed before it existed, which should be read as 1."""
 
     survey_id: uuid.UUID
     floor_id: uuid.UUID
@@ -45,6 +47,7 @@ class CoverageRead(BaseModel):
     cols: int
     rows: int
     values: list[float | None]
+    confidence: list[float | None] | None = None
     good_pct: float
     fair_pct: float
     dead_pct: float

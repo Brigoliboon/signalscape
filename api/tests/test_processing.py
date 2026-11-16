@@ -255,6 +255,11 @@ def cell(grid: proc.Grid, col: int, row: int) -> float:
     return float(grid.values[row * grid.cols + col])
 
 
+def cell_conf(grid: proc.Grid, col: int, row: int) -> float:
+    assert grid.confidence is not None
+    return float(grid.confidence[row * grid.cols + col])
+
+
 def test_idw_needs_readings() -> None:
     with pytest.raises(proc.ProcessingError):
         proc.idw_grid([])
@@ -267,17 +272,27 @@ def test_idw_single_reading_fills_radius_only() -> None:
     assert cell(grid, 0, 0) == -60.0  # the cell center is the reading
 
 
+def test_idw_radius_is_five_meters() -> None:
+    assert proc.IDW_RADIUS_M == 5.0
+
+
 def test_idw_grid_extent_and_radius() -> None:
-    grid = proc.idw_grid([r(0.5, 0.5, -60), r(14.5, 0.5, -70)])
-    assert (grid.cols, grid.rows) == (15, 1)
-    # cell centers 0.5 .. 14.5; reading A reaches cells up to x = 10.5 and
-    # reading B down to x = 4.5, so every cell is covered
+    grid = proc.idw_grid([r(0.5, 0.5, -60), r(10.5, 0.5, -70)])
+    assert (grid.cols, grid.rows) == (11, 1)
+    # cell centers 0.5 .. 10.5; reading A reaches cells up to x = 5.5 and
+    # reading B down to x = 5.5, so every cell is covered
     assert not np.isnan(grid.values).any()
-    # a cell more than 10 m from both stays empty
-    wide = proc.idw_grid([r(0.5, 0.5, -60), r(30.5, 0.5, -70)])
-    assert math.isnan(cell(wide, 15, 0))
-    assert not math.isnan(cell(wide, 10, 0))  # 9.5 m from A
-    assert math.isnan(cell(wide, 11, 0))  # 10.5 m from A, 19.5 m from B
+    # a cell more than 5 m from every reading stays empty
+    gap = proc.idw_grid([r(0.5, 0.5, -60), r(14.5, 0.5, -70)])
+    assert (gap.cols, gap.rows) == (15, 1)
+    assert not math.isnan(cell(gap, 5, 0))  # 5.0 m from A: the edge counts
+    assert math.isnan(cell(gap, 6, 0))  # 6.0 m from A, 8.0 m from B
+    assert math.isnan(cell(gap, 8, 0))  # 8.0 m from A, 6.0 m from B
+    assert not math.isnan(cell(gap, 9, 0))  # 5.0 m from B
+    # no data means no confidence either
+    assert gap.confidence is not None
+    assert np.isnan(gap.confidence[6])
+    assert np.isnan(gap.values[6])
 
 
 def test_idw_weights_by_inverse_square_distance() -> None:
@@ -345,6 +360,56 @@ def test_idw_for_one_floor_under_the_time_budget() -> None:
     grid = proc.idw_grid(readings)
     assert time.monotonic() - started < 30
     assert (grid.cols, grid.rows) == (60, 40)
+
+
+# --- confidence -------------------------------------------------------------
+
+
+def test_confidence_formula() -> None:
+    count = np.array([0, 1, 2, 4, 9, 4])
+    nearest = np.array([5.0, 0.0, 2.5, 0.0, 1.0, 5.0])
+    got = proc.cell_confidence(count, nearest, 5.0)
+    # min(1, n / 4) * (1 - d / radius), clamped to 0..1
+    np.testing.assert_allclose(got, [0.0, 0.25, 0.25, 1.0, 0.8, 0.0])
+    # a distance past the radius cannot go negative
+    assert proc.cell_confidence(np.array([4]), np.array([9.0]), 5.0)[0] == 0.0
+
+
+def test_idw_confidence_per_cell() -> None:
+    # one reading: confidence falls with distance from it
+    one = proc.idw_grid([r(0.5, 0.5, -60)])
+    assert one.confidence is not None
+    assert one.confidence.shape == one.values.shape
+    # the cell on a reading has nearest 0 but only one reading near it
+    assert cell_conf(one, 0, 0) == pytest.approx(0.25)
+    # four readings on the same spot give full confidence there
+    four = proc.idw_grid([r(0.5, 0.5, -60, t=i) for i in range(4)])
+    assert cell_conf(four, 0, 0) == 1.0
+    # further from a reading means less confidence
+    line = proc.idw_grid([r(0.5, 0.5, -60, t=i) for i in range(4)] + [r(4.5, 0.5, -60)])
+    assert cell_conf(line, 0, 0) == 1.0
+    assert cell_conf(line, 2, 0) == pytest.approx(0.6)
+    for conf in line.confidence:
+        assert 0.0 <= conf <= 1.0
+
+
+def test_idw_confidence_is_rounded_to_two_decimals() -> None:
+    grid = proc.idw_grid([r(0.5, 0.5, -60), r(2.5, 0.5, -60), r(4.5, 0.5, -60)])
+    assert grid.confidence is not None
+    for conf in grid.confidence[~np.isnan(grid.confidence)]:
+        assert conf == round(conf, proc.CONFIDENCE_DECIMALS)
+
+
+def test_idw_confidence_is_the_same_in_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    readings = [r(0.5, 0.5, -50), r(6.5, 3.5, -70), r(2.5, 2.5, -61)]
+    expected = proc.idw_grid(readings).confidence.copy()
+    monkeypatch.setattr(proc, "_CHUNK_ELEMENTS", 3)
+    again = proc.idw_grid(readings).confidence
+    np.testing.assert_allclose(again, expected, equal_nan=True)
+
+
+def test_grid_confidence_defaults_to_none() -> None:
+    assert proc.Grid(0.0, 0.0, 1, 1, 1.0, np.zeros(1)).confidence is None
 
 
 # --- levels -----------------------------------------------------------------
