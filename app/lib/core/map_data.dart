@@ -135,7 +135,10 @@ class SurveyMapData {
     final start = _trailEnd(trail?['start']);
     final end = _trailEnd(trail?['end']);
 
+    // Floors of the summary stay in the list even when this network has
+    // nothing on them, so the floor selector does not jump around.
     final levels = {
+      ...labels.keys,
       ...cells.keys,
       ...aps.keys,
       ...trails.keys,
@@ -253,4 +256,41 @@ MapAccessPoint? _accessPoint(Map geometry, Map props) {
   if (p is! Map || p['floor_level'] is! num) return null;
   final at = _latLng(p['lat'], p['lng']);
   return at == null ? null : ((p['floor_level'] as num).toInt(), at);
+}
+
+/// A Wi-Fi network (one BSSID) the survey saw, for the network picker.
+class MapNetwork {
+  const MapNetwork({
+    required this.ssid,
+    required this.bssid,
+    required this.readingCount,
+  });
+
+  final String ssid;
+  final String bssid;
+  final int readingCount;
+
+  String get name => ssid.isEmpty ? '(hidden network)' : ssid;
+
+  /// "Name · aa:bb:…", as the 3D view's picker shows it.
+  String get label => '$name · $bssid';
+}
+
+/// Networks from `/networks`, one entry per BSSID, in the order given (most
+/// readings first). A BSSID seen under several SSIDs counts once.
+List<MapNetwork> parseNetworks(List<Map<String, dynamic>> items) {
+  final seen = <String>{};
+  final out = <MapNetwork>[];
+  for (final n in items) {
+    final bssid = n['bssid'];
+    if (bssid is! String || !seen.add(bssid)) continue;
+    out.add(
+      MapNetwork(
+        ssid: n['ssid'] is String ? n['ssid'] as String : '',
+        bssid: bssid,
+        readingCount: (n['reading_count'] as num?)?.toInt() ?? 0,
+      ),
+    );
+  }
+  return out;
 }

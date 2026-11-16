@@ -15,12 +15,12 @@ void main() {
     }
   });
 
-  test('with a token it uses Mapbox 512 px tiles and credits both', () {
+  test('with a token it uses Mapbox satellite 512 px tiles and credits both', () {
     final t = MapTiles.forToken(' pk.test ');
     expect(t.usesMapbox, isTrue);
     expect(
       t.urlTemplate,
-      'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/512/'
+      'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/'
       '{z}/{x}/{y}?access_token={accessToken}',
     );
     expect(t.additionalOptions, {'accessToken': 'pk.test'});
@@ -31,8 +31,8 @@ void main() {
   });
 
   test('the style can be chosen', () {
-    final t = MapTiles.forToken('pk.x', style: 'satellite-v9');
-    expect(t.urlTemplate, contains('/mapbox/satellite-v9/'));
+    final t = MapTiles.forToken('pk.x', style: 'dark-v11');
+    expect(t.urlTemplate, contains('/mapbox/dark-v11/'));
   });
 
   test('a build without a define falls back to OpenStreetMap', () {

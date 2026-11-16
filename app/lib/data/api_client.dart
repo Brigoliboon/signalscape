@@ -332,9 +332,37 @@ class ApiClient {
 
   /// Coverage cells and access points of a processed survey as GeoJSON, one
   /// feature per cell or point, each with its `floor_level` (FR-16a). The API's
-  /// default is cells and access points.
-  Future<Map<String, dynamic>> surveyGeoJson(String surveyId) async =>
-      await _send('GET', '/surveys/$surveyId/geojson') as Map<String, dynamic>;
+  /// default is cells and access points. With [bssid] they are only that
+  /// network's; without it the cells are the strongest signal of any network.
+  Future<Map<String, dynamic>> surveyGeoJson(
+    String surveyId, {
+    String? bssid,
+  }) async =>
+      await _send('GET', '/surveys/$surveyId/geojson', query: {'bssid': ?bssid})
+          as Map<String, dynamic>;
+
+  /// Every network seen in the survey (SSID and BSSID pairs), most readings
+  /// first. Works before processing.
+  Future<List<Map<String, dynamic>>> surveyNetworks(String surveyId) async {
+    final items = <Map<String, dynamic>>[];
+    for (var page = 1; page <= 10; page++) {
+      final json =
+          await _send(
+                'GET',
+                '/surveys/$surveyId/networks',
+                query: {
+                  'sort': '-reading_count',
+                  'page': '$page',
+                  'page_size': '100',
+                },
+              )
+              as Map<String, dynamic>;
+      final got = (json['items'] as List).cast<Map<String, dynamic>>();
+      items.addAll(got);
+      if (got.isEmpty || items.length >= (json['total'] as num).toInt()) break;
+    }
+    return items;
+  }
 
   /// The walk, per floor, with its start and end.
   Future<Map<String, dynamic>> surveyTrail(String surveyId) async =>

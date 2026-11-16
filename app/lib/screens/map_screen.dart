@@ -53,6 +53,13 @@ class _MapScreenState extends State<MapScreen> {
   bool _offline = false;
   bool _processing = false;
   SurveyMapData? _data;
+  Map<String, dynamic>? _summary;
+  Map<String, dynamic>? _trail;
+  List<MapNetwork> _networks = const [];
+
+  /// The network shown, or null for the strongest signal of any network.
+  String? _bssid;
+  bool _networkLoading = false;
   int? _level;
   bool _showCells = true;
   bool _showAps = true;
@@ -91,6 +98,14 @@ class _MapScreenState extends State<MapScreen> {
       } on ApiException {
         // The coverage still shows without the walk.
       }
+      var networks = const <MapNetwork>[];
+      try {
+        networks = parseNetworks(
+          await widget.api.surveyNetworks(widget.surveyId),
+        );
+      } on ApiException {
+        // Without the list the map still shows the strongest signal.
+      }
       if (!mounted) return;
       final data = SurveyMapData.parse(
         geojson: geojson,
@@ -98,6 +113,10 @@ class _MapScreenState extends State<MapScreen> {
         summary: summary,
       );
       setState(() {
+        _summary = summary;
+        _trail = trail;
+        _networks = networks;
+        _bssid = null;
         _data = data;
         _level = data.initialFloor?.level;
         _stage = data.isEmpty ? _Stage.empty : _Stage.ready;
@@ -133,9 +152,51 @@ class _MapScreenState extends State<MapScreen> {
     if (b == null) return null;
     return CameraFit.coordinates(
       coordinates: [b.sw, b.ne],
-      padding: const EdgeInsets.fromLTRB(32, 120, 32, 96),
+      padding: const EdgeInsets.fromLTRB(32, 176, 32, 96),
       maxZoom: 21,
     );
+  }
+
+  /// Shows one network (or, with null, the strongest signal) on every floor.
+  /// The walk and floor names stay as they are; the cells and access points
+  /// are read again for that network.
+  Future<void> _pickNetwork(String? bssid) async {
+    if (bssid == _bssid || _networkLoading) return;
+    setState(() => _networkLoading = true);
+    try {
+      final geojson = await widget.api.surveyGeoJson(
+        widget.surveyId,
+        bssid: bssid,
+      );
+      if (!mounted) return;
+      final data = SurveyMapData.parse(
+        geojson: geojson,
+        trail: _trail,
+        summary: _summary,
+      );
+      setState(() {
+        _bssid = bssid;
+        _data = data;
+        if (data.floorAt(_level ?? -9999) == null) {
+          _level = data.initialFloor?.level;
+        }
+        _networkLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _networkLoading = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              e.isNetwork
+                  ? "You're offline. The network was not changed."
+                  : "Couldn't load that network: ${e.message}",
+            ),
+          ),
+        );
+    }
   }
 
   void _pickFloor(int level) {
@@ -284,7 +345,11 @@ class _MapScreenState extends State<MapScreen> {
                   for (final c in floor.cells)
                     Polygon(
                       points: c.ring,
-                      color: levelColor(c.level).withValues(alpha: 0.6),
+                      // Strong enough to read on bright imagery, with a faint
+                      // edge so neighbouring cells stay apart.
+                      color: levelColor(c.level).withValues(alpha: 0.7),
+                      borderColor: Colors.black.withValues(alpha: 0.3),
+                      borderStrokeWidth: 0.6,
                     ),
                 ],
               ),
@@ -295,10 +360,11 @@ class _MapScreenState extends State<MapScreen> {
                 polylines: [
                   Polyline(
                     points: floor.trail,
-                    strokeWidth: 3,
+                    strokeWidth: 3.5,
                     color: Colors.white,
-                    borderStrokeWidth: 1.5,
-                    borderColor: AppColors.background,
+                    // A dark casing keeps the white line visible on roofs.
+                    borderStrokeWidth: 2.5,
+                    borderColor: Colors.black.withValues(alpha: 0.85),
                   ),
                 ],
               ),
@@ -336,6 +402,7 @@ class _MapScreenState extends State<MapScreen> {
                               color: AppColors.primary,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: _shadow,
                             ),
                             child: const Icon(
                               Icons.wifi,
@@ -379,6 +446,14 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  static final List<BoxShadow> _shadow = [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.6),
+      blurRadius: 4,
+      spreadRadius: 1,
+    ),
+  ];
+
   Marker _pin(LatLng at, String letter, Color color, String label) => Marker(
     point: at,
     width: 32,
@@ -391,6 +466,7 @@ class _MapScreenState extends State<MapScreen> {
           color: color,
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 2.5),
+          boxShadow: _shadow,
         ),
         alignment: Alignment.center,
         child: Text(
@@ -429,6 +505,21 @@ class _MapScreenState extends State<MapScreen> {
         else
           Chip(label: Text(floor.label)),
         const SizedBox(height: 4),
+        _networkPicker(),
+        if (_noDataHere(floor))
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'No readings of this network on this floor.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        const SizedBox(height: 4),
         Wrap(
           spacing: 8,
           children: [
@@ -453,6 +544,60 @@ class _MapScreenState extends State<MapScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  bool _noDataHere(FloorLayer floor) =>
+      _bssid != null && floor.cells.isEmpty && floor.accessPoints.isEmpty;
+
+  /// The same choice as the 3D view's network list: the strongest signal of
+  /// any network, or one network by SSID and BSSID.
+  Widget _networkPicker() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                key: const ValueKey('network-picker'),
+                isExpanded: true,
+                value: _bssid,
+                dropdownColor: AppColors.surfaceHigh,
+                hint: const Text('Network'),
+                onChanged: _networkLoading ? null : _pickNetwork,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('All networks (strongest signal)'),
+                  ),
+                  for (final n in _networks)
+                    DropdownMenuItem<String?>(
+                      value: n.bssid,
+                      child: Text(
+                        '${n.label} (${n.readingCount})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_networkLoading)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
