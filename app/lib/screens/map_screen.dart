@@ -11,6 +11,7 @@ import '../core/map_tiles.dart';
 import '../data/api_client.dart';
 import '../theme.dart';
 import '../widgets/view_switch.dart';
+import 'survey_summary_screen.dart';
 
 enum _Stage { loading, ready, empty, notProcessed, failed }
 
@@ -352,6 +353,20 @@ class _MapScreenState extends State<MapScreen> {
       appBar: AppBar(
         title: const Text('Coverage'),
         actions: [
+          IconButton(
+            key: const ValueKey('open-summary'),
+            tooltip: 'Summary and export',
+            icon: const Icon(Icons.summarize_outlined),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => SurveySummaryScreen(
+                  api: widget.api,
+                  surveyId: widget.surveyId,
+                  canProcess: widget.canProcess,
+                ),
+              ),
+            ),
+          ),
           if (widget.onOpen3d != null)
             ViewSwitch(is3d: false, onSwitch: () => widget.onOpen3d!(context)),
         ],

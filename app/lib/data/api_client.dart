@@ -372,6 +372,29 @@ class ApiClient {
   Future<Map<String, dynamic>> surveySummary(String surveyId) async =>
       await _send('GET', '/surveys/$surveyId/summary') as Map<String, dynamic>;
 
+  /// All readings of a survey as CSV, as the API sends them (FR-21).
+  Future<List<int>> exportCsv(String surveyId) async {
+    final request = http.Request('GET', _uri('/surveys/$surveyId/export.csv'))
+      ..headers.addAll({..._headers, 'Accept': 'text/csv'});
+    final http.Response response;
+    try {
+      response = await http.Response.fromStream(
+        await _http.send(request).timeout(const Duration(seconds: 120)),
+      );
+    } on TimeoutException {
+      throw ApiException(0, 'The export took too long. Try again.');
+    } on SocketException {
+      throw ApiException(0, 'No connection to the server.');
+    } on http.ClientException {
+      throw ApiException(0, 'No connection to the server.');
+    }
+    if (response.statusCode == 401 && token != null) onUnauthorized?.call();
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    throw ApiException(response.statusCode, _detail(response));
+  }
+
   /// Address of the 3D page. The token is in the fragment, which is never sent
   /// to a server, so it stays out of access logs.
   Uri viewerUri(String surveyId) => Uri.parse(
