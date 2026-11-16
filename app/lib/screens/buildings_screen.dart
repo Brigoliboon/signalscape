@@ -163,6 +163,7 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
           session: widget.session,
           building: b,
           pickPlan: pickPlanFromGallery,
+          openDb: widget.openDb,
         ),
       ),
     );
