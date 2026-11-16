@@ -235,7 +235,7 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 | GET | `/surveys/{id}/export.csv` | all readings as CSV (FR-21) |
 | GET | `/surveys/{id}/geojson` | GeoJSON FeatureCollection; params `floor_level`, `bssid`, `include` (`cells`, `access_points`, `readings`) |
 
-**GeoJSON output:** coverage cells are `Polygon` features (properties `rssi_dbm`, `level` good/fair/dead, `floor_level`, `bssid`); access points and readings are `Point` features (`ssid`, `bssid`, `floor_level`, `rssi_dbm`). Map clients show one layer per `floor_level`. The app's 2D map (FR-16a) uses `flutter_map` with Mapbox satellite imagery with labels (`satellite-streets-v12` raster tiles, token from `--dart-define=MAPBOX_TOKEN`; without a token it falls back to the OpenStreetMap street map and credit, because Esri's World Imagery is not free for app use). It reads `/summary` (floor names, thresholds, and a 409 when the survey is not processed yet), `/geojson` (cells and access points) `/trail` and `/networks`, draws one floor at a time (cells coloured by `level`, access point markers, the walk with start and end), and fits the camera to that floor's data. A network picker works like the 3D view's: all networks (strongest signal) or one network by SSID and BSSID, which re-reads `/geojson?bssid=` so the cells and access points are that network's only. It can start processing for Surveyors and Admins when the survey has no results yet. Three.js uses the same data, projected back to local meters around the survey origin, with height `floor_level × floor height`.
+**GeoJSON output:** coverage cells are `Polygon` features (properties `rssi_dbm`, `level` good/fair/dead, `floor_level`, `bssid`); access points and readings are `Point` features (`ssid`, `bssid`, `floor_level`, `rssi_dbm`). Map clients show one layer per `floor_level`. The app's 2D map (FR-16a) uses `flutter_map` with Mapbox satellite imagery with labels (`satellite-streets-v12` raster tiles, token from `--dart-define=MAPBOX_TOKEN`; without a token it falls back to the OpenStreetMap street map and credit, because Esri's World Imagery is not free for app use). It reads `/summary` (floor names, thresholds, and a 409 when the survey is not processed yet), `/geojson` (cells and access points) `/trail` and `/networks`, draws one floor at a time (the smooth heatmap picture described under "Heatmap display" in section 5, access point markers, the walk with start and end), and fits the camera to that floor's data. A network picker works like the 3D view's: all networks (strongest signal) or one network by SSID and BSSID, which re-reads `/geojson?bssid=` so the cells and access points are that network's only. It can start processing for Surveyors and Admins when the survey has no results yet. Three.js uses the same data, projected back to local meters around the survey origin, with height `floor_level × floor height`.
 
 ## 5. Processing math
 
@@ -251,7 +251,28 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 
 `n` is the number of cleaned readings within the radius of the cell center and `d_nearest` the distance to the closest one. Four or more readings with one on the cell center give 1; a single reading gives at most 0.25; a lone reading at the edge of the radius gives 0. Values are rounded to two decimals and stored next to `values` (`coverage_grids.confidence`), and a cell with no data has `null`. It is returned as `confidence` by `/coverage` and the preview, and as `confidence` in the properties of the `/geojson` cells. Grids stored before this existed have no confidence and are drawn as if it were 1; `POST /process` fills it in. The 3D page and the app draw a cell's opacity as 30% to 100% of normal by confidence, and the legend says "faded = few readings".
 
-**Levels (FR-15):** a cell is good at or above the user's `good_threshold_dbm` (-67), dead below `dead_threshold_dbm` (-80), and fair in between.
+**Levels (FR-15):** a cell is good at or above the user's `good_threshold_dbm` (-67), dead below `dead_threshold_dbm` (-80), and fair in between. The levels still drive the summary percentages, the tap info, the legend text, the red dead-zone blocks in the 3D view and the colour of the trail dots; they no longer colour the heatmap itself (see below).
+
+**Heatmap display (3D page, 2D map, live preview):** display only. The API still sends the plain 1 m grid (`values`, `confidence`, `null` = no data). Each client turns it into one continuous picture, the way Acrylic Wi-Fi Heatmaps looks, in four steps. The maths is plain code with tests in two copies that must stay in step: `api/app/static/viewer/heat.mjs` (3D page, Node tests in `api/tests/js/heat.test.mjs`) and `app/lib/core/heatmap.dart` (app, `app/test/heatmap_test.dart`).
+
+1. **Upsample.** Bilinear, 6 pixels per cell (4 for the live preview), and never more than 2048 pixels on the longest side (512 for the preview), so big floors get a smaller factor. The picture covers the grid plus one blank cell on every side. Empty cells are left out of the blend and the remaining weights are renormalised, so a colour never bleeds into an empty area and a value never drifts towards nothing. Each pixel also gets a `coverage` (the share of its four nearest cell centres that have data, 0 to 1) and a blended `confidence`.
+2. **Colour.** Each pixel's dBm goes through one ramp, interpolated linearly in RGB between these stops and clamped outside them. The legend is the same ramp as a gradient bar with ticks at -30, -45, -60, -75, -90 and -100 dBm.
+
+   | dBm | colour |
+   |---|---|
+   | -30 | red `#e3211c` |
+   | -45 | orange `#f7861e` |
+   | -57 | yellow `#fbe51a` |
+   | -67 | green `#38b54a` |
+   | -78 | cyan `#18c8dc` |
+   | -90 | blue `#2b5fd9` |
+   | -100 | dark blue `#1b2166` |
+
+   Opacity of a pixel = `smoothstep(coverage)` × (0.3 + 0.7 × confidence). The first factor makes the covered area end in a soft, rounded edge about one cell wide (half opaque at the outer edge of the outermost cells); the second keeps the "faded = few readings" cue from the confidence section.
+3. **Contour lines.** Marching squares on the upsampled field, one thin dark line every 5 dB (multiples of 5, so -50, -55 ...); the step is a parameter. Lines are only made where the picture is at least half covered and not below the minimum signal, so there are none in the soft edge or in empty areas. A saddle cell is settled by its average.
+4. **Controls.** Opacity (10% to 100%, default 85%) multiplies the whole picture and redraws nothing. Minimum RSSI (-100 to -30 dBm, default -100) makes everything weaker than that transparent, contours included. A contour switch turns the lines on or off. The 3D page has them in the Layers sheet; the 2D map has a Display chip that opens a bottom sheet.
+
+**Where each client draws it.** *3D page:* a canvas texture on a plane one cell larger than the grid on each side, with linear filtering and mipmaps; the contour lines are stroked onto the canvas. The Content-Security-Policy is unchanged. Tapping a floor reports the nearest grid cell's own value and its level (good, fair, dead) from the thresholds, not an interpolated number; a tap in the blank border finds the nearest cell. *2D map:* the GeoJSON gives one square per cell with data, so the app puts the grid back together from the squares (columns and rows come from the squares' average size, the exact cell size from the whole extent, because corners are rounded to 7 decimals). The picture is made in an isolate (`compute`), encoded as a PNG in plain Dart, and shown by flutter_map's `OverlayImageLayer` at the grid's geographic bounds plus the blank cell. Up to eight pictures are kept by floor, network and settings; changing opacity never redraws. A tap on the map shows the nearest cell's value and level. *Live preview:* the same upsampling and ramp, without contour lines, drawn under the trail and made again only when a new preview grid arrives.
 
 **Access points (FR-14):** weighted centroid of the strongest 10 readings for each BSSID, with linear-power weights `10^(rssi / 10)`, placed on the floor where its readings are strongest. A log-distance path-loss fit can replace it later without changing the API, since `method` is stored.
 
@@ -268,7 +289,7 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 
 **Live visuals during a survey:**
 - A trail on the floor plan: a solid line through every step (so it stays drawn between Wi-Fi scans, which Android limits to about four per two minutes), a dot per scan colored by RSSI against the user's thresholds (good, fair, dead), and a marker at the start. The view fits the walk, not the heatmap. Works offline.
-- When online, a preview heatmap refreshed about every 60 s by calling `POST /surveys/{id}/process?preview=true` on the readings synced so far. Preview results are not marked final and the status stays `active`.
+- When online, a preview heatmap refreshed about every 60 s by calling `POST /surveys/{id}/process?preview=true` on the readings synced so far. Preview results are not marked final and the status stays `active`. It is drawn with the same smooth ramp as the maps, without contour lines.
 
 ## 7. Open decisions
 

@@ -104,7 +104,7 @@ Take a checkpoint when you arrive on a new floor if you can.
 
 ## 9. Live preview
 
-About once a minute, while the phone is online, the app asks the server for a quick heatmap of what you have collected and draws it under your trail ("Heatmap preview · updated 14:32"). Offline it keeps the last one ("Heatmap preview: offline, showing the last one"). Until the first one arrives it says "Heatmap preview appears here about every minute while online." The preview is a guide to where signal is missing; the final map is made when you end the survey.
+About once a minute, while the phone is online, the app asks the server for a quick heatmap of what you have collected and draws it under your trail as a smooth colour field (red strong, through yellow and green, to blue weak, the same colours as the maps) ("Heatmap preview · updated 14:32"). Offline it keeps the last one ("Heatmap preview: offline, showing the last one"). Until the first one arrives it says "Heatmap preview appears here about every minute while online." The preview is a guide to where signal is missing; the final map is made when you end the survey.
 
 ## 10. Ending the survey
 
@@ -120,12 +120,16 @@ Pressing back during a survey asks "Leave this survey?" ("Readings already taken
 
 ## 11. The 3D view
 
-**Coverage in 3D** shows your floors stacked, with the heatmap coloured good (green), fair (amber) and dead (red), estimated access points and your walk.
+**Coverage in 3D** shows your floors stacked, each with a smooth heatmap, estimated access points and your walk.
 
+- **Reading the colours:** the heatmap is one continuous colour field. **Red** is a very strong signal (about -30 dBm), then orange, yellow, green, cyan and **dark blue** for a very weak one (-100 dBm). The **legend** at the top left is a gradient bar with dBm ticks (-30, -45, -60, -75, -90, -100), with "Strong" on the left and "Weak" on the right. Under it are your thresholds in words ("Good: -67 dBm or stronger", "Dead zone: weaker than -80 dBm").
+- **Thin black contour lines** run along places with the same signal, one line every 5 dBm. Many lines close together mean the signal changes quickly; red blocks still mark dead zones.
+- **Faded** colour means few readings were close by, so treat it as a guess. Places with no reading within 5 m have no colour, and the edge of the coloured area fades out softly.
 - One finger rotates, two fingers pinch to zoom and slide to move.
-- Tap a spot on a floor to see its signal and level, for example "Ground: -52.9 dBm · Good".
-- **Layers** opens the sheet with **Network** (all networks, strongest signal, or one network), **Floors** (show or hide each floor) and **Markers**: Estimated access points, Walked path, start and end (green Start, red End), and Highlight dead zones.
-- The legend at the bottom explains the colours and markers.
+- Tap a spot on a floor to see the signal of the nearest measured cell and its level, for example "Ground: -52.9 dBm · Good". The colour is smooth, but this number is a real cell value.
+- **Layers** opens the sheet with **Network** (all networks, strongest signal, or one network), **Floors** (show or hide each floor), **Heatmap** and **Markers**.
+  - **Heatmap:** the **Opacity** slider (10% to 100%) makes the colours more or less see-through. The **Min RSSI** slider hides everything weaker than the value you pick, from -100 to -30 dBm, which is a quick way to see only where the signal is good enough; its value shows next to it, for example "-75 dBm". **Contour lines** turns the black lines on or off.
+  - **Markers:** Estimated access points, Walked path, start and end (green Start, red End), and Highlight dead zones.
 - **2D map** at the top right switches to the map.
 
 ## 12. The 2D satellite map
@@ -135,6 +139,9 @@ Pressing back during a survey asks "Leave this survey?" ("Readings already taken
 - Floor chips pick one floor at a time.
 - The **Network** dropdown picks "All networks (strongest signal)" or a single network, listed with its name, address (BSSID) and how many readings it has. The cells and access points reload for that network. A single network works on surveys that have been fully processed; if nothing was heard on that floor it says "No readings of this network on this floor."
 - **Coverage**, **Access points** and **Walk** chips turn each layer on or off. The walk shows **S** (start) and **E** (end) markers.
+- The coverage is the same smooth colour field as in 3D, laid over the satellite picture, with thin black contour lines every 5 dBm. The legend at the bottom left is the colour bar with dBm ticks, then your thresholds ("Good ≥ -67 dBm", "Dead < -80 dBm") and "Faded = few readings".
+- The **Display** chip opens a sheet with **Opacity** (10% to 100%), **Min RSSI** (hides everything weaker than the value, -100 to -30 dBm; the map redraws when you let go of the slider) and a **Contour lines** switch.
+- Tap anywhere on the coverage to see the value of the nearest measured cell, for example "-62 dBm · Good · nearest cell", or "No data here (no reading within 5 m)".
 - Tap an access point to see its name, BSSID and strongest reading.
 - **3D view** at the top right goes back.
 - If the survey has not been processed yet the screen says "Not processed yet", and a Surveyor sees **Process now**.

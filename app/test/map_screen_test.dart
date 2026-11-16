@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:signalscape_mobile/core/heatmap.dart';
 import 'package:signalscape_mobile/core/map_tiles.dart';
 import 'package:signalscape_mobile/data/api_client.dart';
 import 'package:signalscape_mobile/screens/map_screen.dart';
@@ -25,6 +26,25 @@ class NoTiles extends TileProvider {
 }
 
 typedef Routes = Map<String, http.Response Function()>;
+
+/// What the screen asked to have drawn, newest last. The renderer answers at
+/// once, so no isolate is involved.
+final List<HeatRequest> heatRequests = [];
+
+Future<HeatImage> fakeHeat(HeatRequest request) async {
+  heatRequests.add(request);
+  return renderHeatPng(request);
+}
+
+/// How many cells of data the newest picture was made from.
+int drawnCells() => heatRequests.last.grid.values.whereType<double>().length;
+
+OverlayImage overlayOf(WidgetTester tester) =>
+    tester
+            .widget<OverlayImageLayer>(find.byType(OverlayImageLayer))
+            .overlayImages
+            .single
+        as OverlayImage;
 
 Routes goodRoutes() => {
   'GET /api/surveys/s1/summary': () => jsonResponse(summary()),
@@ -81,6 +101,7 @@ Future<List<String>> pump(
   bool canProcess = false,
   void Function(BuildContext)? onOpen3d,
 }) async {
+  heatRequests.clear();
   final calls = <String>[];
   final api = apiFor((req) async {
     final bssid = req.url.queryParameters['bssid'];
@@ -103,6 +124,7 @@ Future<List<String>> pump(
         tiles: MapTiles.forToken(''),
         tileProvider: NoTiles(),
         onOpen3d: onOpen3d,
+        heatRenderer: fakeHeat,
       ),
     ),
   );
@@ -111,6 +133,7 @@ Future<List<String>> pump(
 }
 
 Future<void> pumpWith(WidgetTester tester, ApiClient api) async {
+  heatRequests.clear();
   tester.view.physicalSize = const Size(800, 1400);
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
@@ -122,6 +145,7 @@ Future<void> pumpWith(WidgetTester tester, ApiClient api) async {
         surveyId: 's1',
         tiles: MapTiles.forToken(''),
         tileProvider: NoTiles(),
+        heatRenderer: fakeHeat,
       ),
     ),
   );
@@ -135,14 +159,25 @@ void main() {
     await pump(tester, goodRoutes());
     expect(tester.takeException(), isNull);
     expect(find.byType(FlutterMap), findsOneWidget);
-    expect(find.byType(PolygonLayer), findsOneWidget);
+    expect(find.byType(OverlayImageLayer), findsOneWidget);
+    expect(find.byType(PolygonLayer), findsNothing);
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-    // Opens on the floor with the most coverage (ground has two cells).
-    final polygons = tester.widget<PolygonLayer>(find.byType(PolygonLayer));
-    expect(polygons.polygons, hasLength(2));
-    // A cell the API is sure of is strong; one with no confidence is faded.
-    expect(polygons.polygons[0].color!.a, closeTo(0.75, 0.01));
-    expect(polygons.polygons[1].color!.a, closeTo(0.75 * 0.3, 0.01));
+    // Opens on the floor with the most coverage (ground has two cells), drawn
+    // as one picture from a 2 x 1 grid, not as polygons.
+    expect(heatRequests, hasLength(1));
+    final grid = heatRequests.single.grid;
+    expect((grid.cols, grid.rows), (2, 1));
+    expect(grid.values, [-50, -90]);
+    // A cell the API is sure of is strong; one with none is faded.
+    expect(grid.confidence, [1.0, 0.0]);
+    // The picture is placed on the grid plus a blank cell all round, with
+    // the SW corner of the floor's cells inside it.
+    final overlay = overlayOf(tester);
+    expect(overlay.bounds.south, closeTo(14.6 - 0.00001, 1e-9));
+    expect(overlay.bounds.west, closeTo(121.0 - 0.00001, 1e-9));
+    expect(overlay.bounds.north, closeTo(14.6 + 0.00002, 1e-9));
+    expect(overlay.bounds.east, closeTo(121.0 + 0.00003, 1e-9));
+    expect(overlay.opacity, 0.85);
     expect(find.text('Ground'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
     // The surveyor's thresholds are in the legend.
@@ -150,6 +185,11 @@ void main() {
     expect(find.text('Dead < -75 dBm'), findsOneWidget);
     expect(find.byKey(const ValueKey('legend-faded')), findsOneWidget);
     expect(find.text('Faded = few readings'), findsOneWidget);
+    // The legend is a gradient bar with dBm ticks.
+    expect(find.byKey(const ValueKey('legend-ramp')), findsOneWidget);
+    for (final tick in legendTicks) {
+      expect(find.text('$tick'), findsOneWidget);
+    }
     // Start marker and the access point are on this floor.
     expect(find.byKey(const ValueKey('pin-S')), findsOneWidget);
     expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')), findsOneWidget);
@@ -162,8 +202,8 @@ void main() {
     await pump(tester, goodRoutes());
     await tester.tap(find.byKey(const ValueKey('floor-1')));
     await tester.pumpAndSettle();
-    final polygons = tester.widget<PolygonLayer>(find.byType(PolygonLayer));
-    expect(polygons.polygons, hasLength(1));
+    expect(drawnCells(), 1);
+    expect(find.byKey(const ValueKey('heat-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')), findsNothing);
     expect(find.byKey(const ValueKey('pin-S')), findsNothing);
     expect(find.byKey(const ValueKey('pin-E')), findsOneWidget);
@@ -175,12 +215,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('layer-aps')));
     await tester.tap(find.byKey(const ValueKey('layer-trail')));
     await tester.pumpAndSettle();
-    expect(find.byType(PolygonLayer), findsNothing);
+    expect(find.byType(OverlayImageLayer), findsNothing);
     expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')), findsNothing);
     expect(find.byKey(const ValueKey('pin-S')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('layer-cells')));
     await tester.pumpAndSettle();
-    expect(find.byType(PolygonLayer), findsOneWidget);
+    expect(find.byType(OverlayImageLayer), findsOneWidget);
   });
 
   testWidgets('tapping an access point shows its SSID, BSSID and RSSI', (
@@ -242,19 +282,13 @@ void main() {
       tester,
     ) async {
       final calls = await pump(tester, goodRoutes());
-      expect(
-        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
-        hasLength(2),
-      );
+      expect(drawnCells(), 2);
       await choose(tester, 'Lab · aa:bb');
       expect(
         calls,
         contains('GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:01'),
       );
-      expect(
-        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
-        hasLength(1),
-      );
+      expect(drawnCells(), 1);
       // The walk, the floors and the access point stay.
       expect(find.byKey(const ValueKey('pin-S')), findsOneWidget);
       expect(find.text('Ground'), findsOneWidget);
@@ -273,16 +307,13 @@ void main() {
       await pump(tester, goodRoutes());
       await choose(tester, 'Lab · aa:bb');
       await choose(tester, 'All networks');
-      expect(
-        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
-        hasLength(2),
-      );
+      expect(drawnCells(), 2);
     });
 
     testWidgets('a network with nothing on the floor says so', (tester) async {
       await pump(tester, goodRoutes());
       await choose(tester, 'aa:bb:cc:dd:ee:02');
-      expect(find.byType(PolygonLayer), findsNothing);
+      expect(find.byType(OverlayImageLayer), findsNothing);
       expect(
         find.text('No readings of this network on this floor.'),
         findsOneWidget,
@@ -301,10 +332,8 @@ void main() {
       await choose(tester, 'Lab · aa:bb');
       expect(find.textContaining('Boom'), findsOneWidget);
       expect(find.text('All networks (strongest signal)'), findsOneWidget);
-      expect(
-        tester.widget<PolygonLayer>(find.byType(PolygonLayer)).polygons,
-        hasLength(2),
-      );
+      expect(drawnCells(), 2);
+      expect(find.byType(OverlayImageLayer), findsOneWidget);
     });
 
     testWidgets('offline keeps the network and says so', (tester) async {
@@ -329,6 +358,100 @@ void main() {
       expect(find.byType(FlutterMap), findsOneWidget);
       expect(find.text('All networks (strongest signal)'), findsOneWidget);
     });
+  });
+
+  group('display settings', () {
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('display-settings')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the sheet has opacity, min RSSI and contour controls', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      await openSheet(tester);
+      expect(find.byKey(const ValueKey('heat-opacity')), findsOneWidget);
+      expect(find.byKey(const ValueKey('heat-min-rssi')), findsOneWidget);
+      expect(find.byKey(const ValueKey('heat-contours')), findsOneWidget);
+      expect(find.text('Opacity 85%'), findsOneWidget);
+      expect(find.text('Min RSSI -100 dBm'), findsOneWidget);
+    });
+
+    testWidgets('opacity changes the overlay without redrawing it', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      await openSheet(tester);
+      final slider = tester.getRect(find.byKey(const ValueKey('heat-opacity')));
+      // Drag the thumb to the far left: the lowest opacity, 10%.
+      await tester.dragFrom(
+        Offset(slider.left + slider.width * 0.75, slider.center.dy),
+        Offset(-slider.width * 2, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(overlayOf(tester).opacity, closeTo(0.1, 1e-9));
+      expect(find.text('Opacity 10%'), findsOneWidget);
+      expect(heatRequests, hasLength(1), reason: 'only the widget changed');
+    });
+
+    testWidgets('min RSSI draws the picture again with the new cut-off', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      await openSheet(tester);
+      expect(heatRequests.last.minRssi, -100);
+      final slider = tester.getRect(
+        find.byKey(const ValueKey('heat-min-rssi')),
+      );
+      // To the far right: -30 dBm, the strongest end.
+      await tester.dragFrom(
+        Offset(slider.left + slider.width * 0.25, slider.center.dy),
+        Offset(slider.width * 2, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Min RSSI -30 dBm'), findsOneWidget);
+      expect(heatRequests, hasLength(2));
+      expect(heatRequests.last.minRssi, -30);
+    });
+
+    testWidgets('contour lines switch off and back from the cache', (
+      tester,
+    ) async {
+      await pump(tester, goodRoutes());
+      await openSheet(tester);
+      expect(heatRequests.last.contours, isTrue);
+      await tester.tap(find.byKey(const ValueKey('heat-contours')));
+      await tester.pumpAndSettle();
+      expect(heatRequests, hasLength(2));
+      expect(heatRequests.last.contours, isFalse);
+      // Back on: the earlier picture is reused, nothing is drawn again.
+      await tester.tap(find.byKey(const ValueKey('heat-contours')));
+      await tester.pumpAndSettle();
+      expect(heatRequests, hasLength(2));
+      expect(find.byType(OverlayImageLayer), findsOneWidget);
+    });
+  });
+
+  testWidgets('tapping the map shows the nearest cell\'s value', (
+    tester,
+  ) async {
+    await pump(tester, goodRoutes());
+    expect(find.byKey(const ValueKey('cell-info')), findsNothing);
+    // Away from the controls, pins and legend. The map waits a moment to
+    // tell a tap from a double tap.
+    await tester.tapAt(const Offset(60, 380));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cell-info')), findsOneWidget);
+    // Both cells have a value; the panel names it, its level and that it is
+    // the nearest cell (the picture itself is smooth).
+    expect(
+      find.textContaining(
+        RegExp(r'^-(50|90) dBm · (Good|Dead) · nearest cell$'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the 3D switch is offered when given', (tester) async {

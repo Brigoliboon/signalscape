@@ -17,6 +17,11 @@
   </header>
 
   <section class="legend" aria-label="Legend">
+    <div class="ramp">
+      <canvas id="ramp-bar" width="240" height="14" role="img" aria-label="Signal colour scale from -30 dBm (strong, red) to -100 dBm (weak, dark blue)"></canvas>
+      <div id="ramp-ticks" aria-hidden="true"></div>
+      <div class="ramp-ends"><span>Strong</span><span>Weak</span></div>
+    </div>
     <ul id="legend-list"></ul>
   </section>
 
@@ -30,6 +35,19 @@
     <fieldset>
       <legend>Floors</legend>
       <div id="floor-list"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Heatmap</legend>
+      <label class="slider" for="heat-opacity">
+        <span>Opacity <output id="heat-opacity-text" for="heat-opacity"></output></span>
+        <input id="heat-opacity" type="range" min="10" max="100" step="5" value="85">
+      </label>
+      <label class="slider" for="heat-min-rssi">
+        <span>Min RSSI <output id="heat-min-rssi-text" for="heat-min-rssi"></output></span>
+        <input id="heat-min-rssi" type="range" min="-100" max="-30" step="1" value="-100">
+      </label>
+      <label class="check"><input id="heat-contours" type="checkbox" checked> Contour lines</label>
     </fieldset>
 
     <fieldset>

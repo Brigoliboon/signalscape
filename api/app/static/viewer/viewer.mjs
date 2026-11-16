@@ -14,7 +14,6 @@ import {
   CONFIDENCE_NOTE,
   LEVEL_COLORS,
   LEVEL_NAMES,
-  cellAt,
   cellLevels,
   dataExtent,
   fadedColor,
@@ -25,9 +24,22 @@ import {
   levelFor,
   networkLabel,
   parseFragment,
-  smoothCellPixels,
   toLocal,
 } from './levels.mjs';
+import {
+  DEFAULT_CONTOUR_STEP_DB,
+  LEGEND_TICKS,
+  PAD_CELLS,
+  RAMP_STOPS,
+  RAMP_STRONG_DBM,
+  RAMP_WEAK_DBM,
+  cellAtPadded,
+  contourSegments,
+  dbmText,
+  rampFraction,
+  renderPixels,
+  upsampleGrid,
+} from './heat.mjs';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
@@ -52,6 +64,13 @@ const els = {
   showAps: $('show-aps'),
   showTrail: $('show-trail'),
   showDead: $('show-dead'),
+  opacity: $('heat-opacity'),
+  opacityText: $('heat-opacity-text'),
+  minRssi: $('heat-min-rssi'),
+  minRssiText: $('heat-min-rssi-text'),
+  contours: $('heat-contours'),
+  rampBar: $('ramp-bar'),
+  rampTicks: $('ramp-ticks'),
 };
 
 const state = {
@@ -64,6 +83,9 @@ const state = {
   trail: null,
   bssid: '',
   generation: 0,
+  // How the heatmap is drawn. Opacity only changes the material; the minimum signal
+  // and the contour lines redraw the picture.
+  heat: { opacity: 0.85, minRssi: RAMP_WEAK_DBM, contours: true },
 };
 
 let renderer = null;
@@ -282,7 +304,7 @@ function addFootprint(floor) {
   geometry.rotateX(-Math.PI / 2);
   const mesh = new THREE.InstancedMesh(
     geometry,
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }),
     cells.length,
   );
   const matrix = new THREE.Matrix4();
@@ -305,6 +327,7 @@ function addFootprint(floor) {
 function buildFloor(floor) {
   disposeGroup(floor.group);
   floor.heat = null;
+  floor.field = null;
   floor.slab = null;
   floor.deadMesh = null;
   floor.apMeshes = [];
@@ -333,26 +356,77 @@ function buildFloor(floor) {
   applyVisibility(floor);
 }
 
+/**
+ * The picture of one floor: the grid upsampled into a smooth field, coloured with the
+ * rainbow ramp, with contour lines every few dB drawn on top. It is a canvas texture
+ * with linear filtering. Cells without data stay transparent and the edge fades out.
+ */
+function makeHeatTexture(floor) {
+  const grid = floor.grid;
+  // The upsampled field depends only on the grid, so it is kept across slider moves.
+  if (!floor.field) {
+    floor.field = upsampleGrid({
+      values: grid.values,
+      confidence: grid.confidence,
+      cols: grid.cols,
+      rows: grid.rows,
+    });
+  }
+  const field = floor.field;
+  const canvas = document.createElement('canvas');
+  canvas.width = field.width;
+  canvas.height = field.height;
+  const context = canvas.getContext('2d');
+  const { minRssi, contours } = state.heat;
+  context.putImageData(new ImageData(renderPixels(field, { minRssi }), field.width, field.height), 0, 0);
+  if (contours) {
+    const lines = contourSegments(field, { step: DEFAULT_CONTOUR_STEP_DB, minRssi });
+    context.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+    context.lineWidth = Math.max(1.2, field.factor * 0.25);
+    context.lineCap = 'round';
+    context.beginPath();
+    for (let i = 0; i < lines.length; i += 4) {
+      context.moveTo(lines[i], lines[i + 1]);
+      context.lineTo(lines[i + 2], lines[i + 3]);
+    }
+    context.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = renderer ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** Redraw the heat pictures after the minimum signal or the contour toggle changed. */
+function refreshHeat() {
+  for (const floor of state.floors) {
+    if (!floor.heat) continue;
+    const old = floor.heat.material.map;
+    floor.heat.material.map = makeHeatTexture(floor);
+    floor.heat.material.needsUpdate = true;
+    if (old) old.dispose();
+  }
+  requestRender();
+}
+
 function addHeatmap(floor, grid) {
   const layout = gridLayout(grid);
   const levels = cellLevels(grid.values, state.thresholds);
-  // Linear filtering blends neighbouring cells into a smooth gradient; cells
-  // without data stay transparent and cells with few readings are faded.
-  const texture = new THREE.DataTexture(
-    smoothCellPixels(levels, grid.confidence, grid.cols, grid.rows),
-    grid.cols,
-    grid.rows,
-    THREE.RGBAFormat,
-  );
-  texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearFilter;
-  texture.generateMipmaps = false;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-
+  // The picture has a blank cell all around, so it is a little larger than the grid.
+  const pad = PAD_CELLS * layout.cell;
   const heat = new THREE.Mesh(
-    new THREE.PlaneGeometry(layout.width, layout.depth),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.PlaneGeometry(layout.width + 2 * pad, layout.depth + 2 * pad),
+    new THREE.MeshBasicMaterial({
+      map: makeHeatTexture(floor),
+      transparent: true,
+      opacity: state.heat.opacity,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
   );
   heat.rotation.x = -Math.PI / 2;
   heat.position.set(layout.centerX, 0.05, layout.centerZ);
@@ -591,10 +665,11 @@ function describeCell(hit) {
     showInfo(`${floor.info.floor_label}: no readings of this network on this floor`);
     return;
   }
-  const { index } = cellAt(hit.uv.x, hit.uv.y, floor.grid.cols, floor.grid.rows);
+  // The nearest grid cell: the picture is smooth, the numbers are the cells' own.
+  const { index } = cellAtPadded(hit.uv.x, hit.uv.y, floor.grid.cols, floor.grid.rows);
   const value = floor.grid.values[index];
   if (value === null || value === undefined) {
-    showInfo(`${floor.info.floor_label}: no data here (no reading within 10 m)`);
+    showInfo(`${floor.info.floor_label}: no data here (no reading within 5 m)`);
     return;
   }
   const level = levelFor(value, state.thresholds.good_dbm, state.thresholds.dead_dbm);
@@ -603,9 +678,33 @@ function describeCell(hit) {
 
 // --- controls ----------------------------------------------------------------
 
+/** The ramp as a gradient bar (strong on the left) with dBm ticks under it. */
+function buildRampBar() {
+  const canvas = els.rampBar;
+  const context = canvas.getContext('2d');
+  const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
+  for (const stop of RAMP_STOPS) gradient.addColorStop(rampFraction(stop.dbm), stop.color);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  els.rampTicks.replaceChildren();
+  for (const dbm of LEGEND_TICKS) {
+    const tick = document.createElement('span');
+    tick.textContent = String(dbm);
+    tick.style.left = `${rampFraction(dbm) * 100}%`;
+    els.rampTicks.append(tick);
+  }
+}
+
 function buildLegend() {
+  buildRampBar();
   els.legend.replaceChildren();
-  const rows = legendEntries(state.thresholds).map((entry) => ({ text: entry.text, color: entry.color }));
+  // The map is a continuous ramp now; the thresholds stay as text, and only the dead
+  // zone keeps a swatch because it is still marked with red blocks.
+  const rows = legendEntries(state.thresholds).map((entry) => ({
+    text: entry.text,
+    color: entry.level === 'dead' ? entry.color : null,
+  }));
+  rows.push({ text: `Lines: every ${DEFAULT_CONTOUR_STEP_DB} dBm`, color: null });
   rows.push({ text: CONFIDENCE_NOTE, color: fadedColor(LEVEL_COLORS.fair) });
   rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: true });
   if (state.trail && state.trail.start) {
@@ -617,7 +716,8 @@ function buildLegend() {
     const item = document.createElement('li');
     const swatch = document.createElement('span');
     swatch.className = row.ap ? 'swatch ap' : 'swatch';
-    swatch.style.background = row.color;
+    if (row.color) swatch.style.background = row.color;
+    else swatch.classList.add('none');
     swatch.setAttribute('aria-hidden', 'true');
     const text = document.createElement('span');
     text.textContent = row.text;
@@ -700,6 +800,46 @@ els.network.addEventListener('change', changeNetwork);
 els.showAps.addEventListener('change', applyAllVisibility);
 els.showTrail.addEventListener('change', applyAllVisibility);
 els.showDead.addEventListener('change', applyAllVisibility);
+
+function showHeatSettings() {
+  els.opacityText.textContent = `${state.heat.opacity * 100}%`;
+  els.minRssiText.textContent = dbmText(state.heat.minRssi);
+}
+
+els.opacity.addEventListener('input', () => {
+  state.heat.opacity = Number(els.opacity.value) / 100;
+  for (const floor of state.floors) {
+    if (floor.heat) floor.heat.material.opacity = state.heat.opacity;
+  }
+  showHeatSettings();
+  requestRender();
+});
+// The picture is made again at most once per pause: dragging the slider on a big floor
+// would otherwise redraw a multi-megapixel texture on every tick.
+let heatTimer = null;
+function scheduleHeat(delayMs) {
+  if (heatTimer !== null) clearTimeout(heatTimer);
+  heatTimer = setTimeout(() => {
+    heatTimer = null;
+    refreshHeat();
+  }, delayMs);
+}
+els.minRssi.addEventListener('input', () => {
+  state.heat.minRssi = Number(els.minRssi.value);
+  showHeatSettings(); // the number follows the thumb at once
+  scheduleHeat(150);
+});
+els.minRssi.addEventListener('change', () => scheduleHeat(0));
+els.contours.addEventListener('change', () => {
+  state.heat.contours = els.contours.checked;
+  refreshHeat();
+});
+els.opacity.value = String(Math.round(state.heat.opacity * 100));
+els.minRssi.min = String(RAMP_WEAK_DBM);
+els.minRssi.max = String(RAMP_STRONG_DBM);
+els.minRssi.value = String(state.heat.minRssi);
+els.contours.checked = state.heat.contours;
+showHeatSettings();
 els.layersToggle.addEventListener('click', () => {
   const open = els.layers.hidden;
   els.layers.hidden = !open;

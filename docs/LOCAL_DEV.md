@@ -105,13 +105,13 @@ Details:
 
 The 3D page is plain static files in `api/app/static/viewer/` (Three.js is vendored, there is no build step). The API serves them at `/api/viewer/`; the app loads that URL with the survey id and a token in the URL fragment: `/api/viewer/#survey=<id>&token=<jwt>`. The Python tests in `tests/test_viewer.py` check the headers and that the page loads only its own files.
 
-Pure helper functions (colours, levels, grid maths) have Node tests. From `api/`:
+Pure helper functions have Node tests: `levels.mjs` (levels, confidence, projection) and `heat.mjs` (colour ramp, bilinear upsampling, contour lines, the tap lookup). From `api/`:
 
 ```bash
-node --test tests/js/levels.test.mjs
+node --test tests/js/levels.test.mjs tests/js/heat.test.mjs
 ```
 
-On Node 24, pass the file path as shown; passing only the folder fails. These tests are not part of CI, so run them when you change `levels.mjs`.
+On Node 24, pass the file path as shown; passing only the folder fails. These tests are not part of CI, so run them when you change `levels.mjs` or `heat.mjs`. The same heatmap maths exists in Dart (`app/lib/core/heatmap.dart`, tested by `flutter test`); change both together.
 
 ## Flutter app
 

@@ -228,6 +228,8 @@ curl -sS "$BASE/surveys/$SID/coverage?floor_id=9c978e73-9e30-4940-97e6-fe0de35d4
 {"survey_id":"6b3db87d-…","floor_id":"9c978e73-…","floor_level":0,"bssid":null,"method":"idw","cell_size_m":1.0,"origin_lat":14.5995,"origin_lng":120.9842,"cols":11,"rows":1,"values":[-47.7,-50.2,-52.9,-55.5,-57.7,-57.6,-56.1,-54.3,-52.5,-50.7,-49.1],"good_pct":100.0,"fair_pct":0.0,"dead_pct":0.0,"thresholds":{"good_dbm":-67,"dead_dbm":-80},"raw_reading_count":24,"cleaned_reading_count":24,"computed_at":"…"}
 ```
 
+The grid is plain data: the 3D page and the app turn it into a smooth colour picture themselves (see `docs/DESIGN.md`, "Heatmap display"), so there is no image endpoint and nothing about the picture to configure here.
+
 The walk, floor by floor (used by the app and the 3D page to draw the trail with start and end markers): `GET /api/surveys/{id}/trail`. Response (shortened):
 
 ```json
