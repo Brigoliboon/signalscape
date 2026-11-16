@@ -153,9 +153,10 @@ class _TrailPainter extends CustomPainter {
               tl.dy + cell < 0) {
             continue;
           }
-          paint.color = levelColor(
-            levelFor(v.round(), thresholds),
-          ).withValues(alpha: 0.4);
+          // Faded where few readings back the cell.
+          paint.color = levelColor(levelFor(v.round(), thresholds)).withValues(
+            alpha: confidenceAlpha(g.confidenceAt(col, row), full: 0.55),
+          );
           canvas.drawRect(
             Rect.fromLTWH(tl.dx, tl.dy, cell + 0.5, cell + 0.5),
             paint,

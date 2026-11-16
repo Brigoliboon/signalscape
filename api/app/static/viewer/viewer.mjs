@@ -11,12 +11,13 @@
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import {
+  CONFIDENCE_NOTE,
   LEVEL_COLORS,
   LEVEL_NAMES,
   cellAt,
   cellLevels,
-  cellPixels,
   dataExtent,
+  fadedColor,
   floorElevation,
   formatDbm,
   isUuid,
@@ -24,6 +25,7 @@ import {
   levelFor,
   networkLabel,
   parseFragment,
+  smoothCellPixels,
   toLocal,
 } from './levels.mjs';
 
@@ -334,9 +336,17 @@ function buildFloor(floor) {
 function addHeatmap(floor, grid) {
   const layout = gridLayout(grid);
   const levels = cellLevels(grid.values, state.thresholds);
-  const texture = new THREE.DataTexture(cellPixels(levels), grid.cols, grid.rows, THREE.RGBAFormat);
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
+  // Linear filtering blends neighbouring cells into a smooth gradient; cells
+  // without data stay transparent and cells with few readings are faded.
+  const texture = new THREE.DataTexture(
+    smoothCellPixels(levels, grid.confidence, grid.cols, grid.rows),
+    grid.cols,
+    grid.rows,
+    THREE.RGBAFormat,
+  );
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
 
@@ -596,6 +606,7 @@ function describeCell(hit) {
 function buildLegend() {
   els.legend.replaceChildren();
   const rows = legendEntries(state.thresholds).map((entry) => ({ text: entry.text, color: entry.color }));
+  rows.push({ text: CONFIDENCE_NOTE, color: fadedColor(LEVEL_COLORS.fair) });
   rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: true });
   if (state.trail && state.trail.start) {
     rows.push({ text: 'Walked path', color: TRAIL_COLOR });

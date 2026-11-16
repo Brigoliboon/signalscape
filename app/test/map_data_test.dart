@@ -10,6 +10,7 @@ Map<String, dynamic> cell(
   double rssi,
   int floor, {
   String? level,
+  Object? confidence,
 }) => {
   'type': 'Feature',
   'geometry': {
@@ -28,6 +29,7 @@ Map<String, dynamic> cell(
     'kind': 'coverage',
     'rssi_dbm': rssi,
     'level': ?level,
+    'confidence': ?confidence,
     'floor_level': floor,
     'bssid': null,
   },
@@ -109,6 +111,19 @@ void main() {
       expect(ground.cells.first.ring.first, const LatLng(14.6, 121.0));
       expect(data.floorAt(1)!.cells.single.level, SignalLevel.dead);
       expect(data.floorAt(7), isNull);
+    });
+
+    test('cells carry their confidence, and none means 1', () {
+      final data = SurveyMapData.parse(
+        geojson: collection([
+          cell(121.0, 14.6, -50, 0, level: 'good', confidence: 0.4),
+          cell(121.0, 14.6, -60, 0, level: 'good'),
+          cell(121.0, 14.6, -70, 0, level: 'fair', confidence: 'high'),
+          cell(121.0, 14.6, -72, 0, level: 'fair', confidence: 3),
+        ]),
+      );
+      final conf = data.floorAt(0)!.cells.map((c) => c.confidence).toList();
+      expect(conf, [0.4, 1.0, 1.0, 1.0]);
     });
 
     test('the API level wins, and a missing level is worked out', () {

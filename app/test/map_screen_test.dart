@@ -31,7 +31,7 @@ Routes goodRoutes() => {
   'GET /api/surveys/s1/geojson': () => jsonResponse(
     collection([
       cell(121.0, 14.6, -50, 0, level: 'good'),
-      cell(121.00001, 14.6, -90, 0, level: 'dead'),
+      cell(121.00001, 14.6, -90, 0, level: 'dead', confidence: 0.0),
       ap(121.0001, 14.6001, 0),
       cell(121.0, 14.6, -70, 1, level: 'fair'),
     ]),
@@ -140,11 +140,16 @@ void main() {
     // Opens on the floor with the most coverage (ground has two cells).
     final polygons = tester.widget<PolygonLayer>(find.byType(PolygonLayer));
     expect(polygons.polygons, hasLength(2));
+    // A cell the API is sure of is strong; one with no confidence is faded.
+    expect(polygons.polygons[0].color!.a, closeTo(0.75, 0.01));
+    expect(polygons.polygons[1].color!.a, closeTo(0.75 * 0.3, 0.01));
     expect(find.text('Ground'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
     // The surveyor's thresholds are in the legend.
     expect(find.text('Good ≥ -60 dBm'), findsOneWidget);
     expect(find.text('Dead < -75 dBm'), findsOneWidget);
+    expect(find.byKey(const ValueKey('legend-faded')), findsOneWidget);
+    expect(find.text('Faded = few readings'), findsOneWidget);
     // Start marker and the access point are on this floor.
     expect(find.byKey(const ValueKey('pin-S')), findsOneWidget);
     expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')), findsOneWidget);

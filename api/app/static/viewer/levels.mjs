@@ -94,6 +94,69 @@ export function cellPixels(levels, alpha = 217) {
   return out;
 }
 
+// A cell backed by no confidence at all still keeps this share of its opacity, so
+// it can be seen.
+export const MIN_CONFIDENCE_SHARE = 0.3;
+
+export const CONFIDENCE_NOTE = 'Faded = few readings';
+
+/**
+ * How sure the API is of a cell, 0 to 1. A missing value (grids processed before
+ * confidence existed, or a null cell) counts as 1.
+ */
+export function confidenceOf(raw) {
+  if (typeof raw !== 'number' || Number.isNaN(raw)) return 1;
+  return Math.min(1, Math.max(0, raw));
+}
+
+/** Opacity byte for a cell: `full` at confidence 1, 30% of it at confidence 0. */
+export function confidenceAlpha(confidence, full = 217) {
+  const share = MIN_CONFIDENCE_SHARE + (1 - MIN_CONFIDENCE_SHARE) * confidenceOf(confidence);
+  return Math.round(full * share);
+}
+
+/** CSS colour of a level colour at the lowest confidence, for the legend. */
+export function fadedColor(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${MIN_CONFIDENCE_SHARE})`;
+}
+
+/**
+ * RGBA bytes for a smoothly filtered heatmap texture (one pixel per cell, row 0 =
+ * south row). Opacity follows each cell's confidence. Cells without data stay fully
+ * transparent, but carry the average colour of their neighbours so that linear
+ * filtering fades the edge out instead of darkening it.
+ */
+export function smoothCellPixels(levels, confidence, cols, rows, alpha = 217) {
+  const out = new Uint8Array(levels.length * 4);
+  const rgb = levels.map((level) => (level ? hexToRgb(LEVEL_COLORS[level]) : null));
+  rgb.forEach((color, i) => {
+    if (color) {
+      out.set([color[0], color[1], color[2], confidenceAlpha(confidence ? confidence[i] : 1, alpha)], i * 4);
+      return;
+    }
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const sum = [0, 0, 0];
+    let n = 0;
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+        const near = rgb[r * cols + c];
+        if (!near) continue;
+        sum[0] += near[0];
+        sum[1] += near[1];
+        sum[2] += near[2];
+        n += 1;
+      }
+    }
+    if (n > 0) out.set([Math.round(sum[0] / n), Math.round(sum[1] / n), Math.round(sum[2] / n), 0], i * 4);
+  });
+  return out;
+}
+
 /** Equirectangular projection around the survey origin: x east, y north (m). */
 export function toLocal(lat, lng, originLat, originLng) {
   const rad = Math.PI / 180;

@@ -1,4 +1,5 @@
 import 'geo.dart';
+import 'levels.dart';
 
 /// The live preview heatmap (FR-11a): the API's strongest-signal grid for one
 /// floor, placed in the same metres-from-origin frame as the live trail.
@@ -15,6 +16,7 @@ class PreviewGrid {
     required this.y0,
     required this.values,
     required this.computedAt,
+    this.confidence,
   });
 
   /// Reads one `CoverageRead` from the API. [originLat] and [originLng] are
@@ -46,6 +48,12 @@ class PreviewGrid {
       y0: sw.y,
       values: [for (final v in raw) (v as num?)?.toDouble()],
       computedAt: computedAt ?? DateTime.now(),
+      confidence: switch (j['confidence']) {
+        final List c when c.length == cols * rows => [
+          for (final v in c) v == null ? null : confidenceOf(v),
+        ],
+        _ => null,
+      },
     );
   }
 
@@ -58,11 +66,17 @@ class PreviewGrid {
   final List<double?> values;
   final DateTime computedAt;
 
+  /// 0 to 1 per cell (see `confidenceOf`), or null when the API sent none.
+  final List<double?>? confidence;
+
   double get x1 => x0 + cols * cellM;
   double get y1 => y0 + rows * cellM;
 
   /// Value of the cell at [col], [row], or null when empty.
   double? at(int col, int row) => values[row * cols + col];
+
+  /// Confidence of the cell at [col], [row]; 1 when unknown.
+  double confidenceAt(int col, int row) => confidence?[row * cols + col] ?? 1.0;
 
   int get filledCells => values.where((v) => v != null).length;
 }

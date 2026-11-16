@@ -32,7 +32,16 @@ INVALID_BSSIDS = frozenset({"00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"})
 
 # Coverage (IDW).
 CELL_SIZE_M = 1.0
-IDW_RADIUS_M = 10.0
+# 5 m (down from 10 m): beyond a few steps a reading says little about a cell, and
+# a wide radius painted guessed values into areas nobody walked. A cell with no
+# reading inside the radius stays "no data".
+IDW_RADIUS_M = 5.0
+# Confidence of a cell (0 to 1) = min(1, n / CONFIDENCE_FULL_READINGS)
+# * (1 - nearest / radius), n being the cleaned readings within the radius and
+# nearest the distance to the closest one. Four readings, one of them on the cell
+# center, give full confidence.
+CONFIDENCE_FULL_READINGS = 4
+CONFIDENCE_DECIMALS = 2
 # A survey whose positions span more than this many cells in one direction is
 # almost certainly a bad GPS fix, so it is refused instead of building a huge grid.
 MAX_GRID_DIM = 1000
@@ -84,6 +93,8 @@ class Grid:
     """Row-major grid of dBm values; ``nan`` where there is no data.
 
     ``origin_x`` and ``origin_y`` are the south-west corner in local meters.
+    ``confidence`` (same layout, 0 to 1, ``nan`` with no data) says how well
+    readings back each cell; ``None`` means it was not computed.
     """
 
     origin_x: float
@@ -92,6 +103,20 @@ class Grid:
     rows: int
     cell_size: float
     values: np.ndarray = field(repr=False)
+    confidence: np.ndarray | None = field(default=None, repr=False)
+
+
+def cell_confidence(
+    count: np.ndarray, nearest: np.ndarray, radius: float
+) -> np.ndarray:
+    """``min(1, count / 4) * (1 - nearest / radius)``, clamped to 0..1.
+
+    ``count`` is the number of readings within ``radius`` and ``nearest`` the
+    distance to the closest one (any value where ``count`` is 0, which gives 0).
+    """
+    spread = np.clip(1.0 - nearest / radius, 0.0, 1.0)
+    shared = np.minimum(1.0, count / CONFIDENCE_FULL_READINGS)
+    return np.clip(shared * spread, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -281,7 +306,8 @@ def idw_grid(
     The grid covers the bounding box of the readings. Each cell takes the average
     of the readings within ``radius`` meters of its center, weighted by
     ``1 / d^2``; a cell with no reading in range stays ``nan``. A cell whose
-    center is on a reading takes that reading's value.
+    center is on a reading takes that reading's value. The grid also carries a
+    per-cell confidence (see :func:`cell_confidence`).
     """
     if not readings:
         raise ProcessingError("There are no readings to interpolate")
@@ -305,6 +331,7 @@ def idw_grid(
     centers_y = np.repeat(cell_y, cols)
 
     out = np.full(cols * rows, np.nan)
+    confidence = np.full(cols * rows, np.nan)
     block = max(1, _CHUNK_ELEMENTS // len(readings))
     for start in range(0, len(out), block):
         cx = centers_x[start : start + block, None]
@@ -324,7 +351,13 @@ def idw_grid(
             )
             part[has_exact] = exact_values[has_exact]
         out[start : start + block] = part
-    return Grid(origin_x, origin_y, cols, rows, cell_size, out)
+        count = in_range.sum(axis=1)
+        nearest = np.sqrt(np.where(in_range, d2, np.inf).min(axis=1))
+        nearest[count == 0] = radius
+        conf = np.round(cell_confidence(count, nearest, radius), CONFIDENCE_DECIMALS)
+        conf[count == 0] = np.nan
+        confidence[start : start + block] = conf
+    return Grid(origin_x, origin_y, cols, rows, cell_size, out, confidence)
 
 
 def level_for(rssi: float, good_dbm: int, dead_dbm: int) -> str:

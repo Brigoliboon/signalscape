@@ -4,12 +4,15 @@ import 'levels.dart';
 
 /// One coverage cell: a square on the map with the signal level it was given.
 class MapCell {
-  const MapCell(this.ring, this.level, this.rssiDbm);
+  const MapCell(this.ring, this.level, this.rssiDbm, [this.confidence = 1]);
 
   /// The corners, without the closing point.
   final List<LatLng> ring;
   final SignalLevel level;
   final double rssiDbm;
+
+  /// 0 to 1, how well readings back the cell; 1 when the API sent none.
+  final double confidence;
 }
 
 /// An estimated access point.
@@ -234,7 +237,12 @@ MapCell? _cell(Map geometry, Map props, Thresholds t) {
     'dead' => SignalLevel.dead,
     _ => levelFor(rssi, t),
   };
-  return MapCell(ring, level, rssi.toDouble());
+  return MapCell(
+    ring,
+    level,
+    rssi.toDouble(),
+    confidenceOf(props['confidence']),
+  );
 }
 
 MapAccessPoint? _accessPoint(Map geometry, Map props) {

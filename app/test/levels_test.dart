@@ -34,4 +34,31 @@ void main() {
     expect(levelName(SignalLevel.fair), 'Fair');
     expect(levelName(SignalLevel.dead), 'Dead');
   });
+
+  group('confidence', () {
+    test('a missing or unreadable value is full confidence', () {
+      expect(confidenceOf(null), 1.0);
+      expect(confidenceOf('0.2'), 1.0);
+      expect(confidenceOf(double.nan), 1.0);
+      expect(confidenceOf(0.4), 0.4);
+      expect(confidenceOf(1), 1.0);
+      expect(confidenceOf(-3), 0.0);
+      expect(confidenceOf(7), 1.0);
+    });
+
+    test('alpha fades from full to 30% of it', () {
+      expect(confidenceAlpha(1, full: 0.75), closeTo(0.75, 1e-9));
+      expect(
+        confidenceAlpha(0, full: 0.75),
+        closeTo(0.75 * minConfidenceShare, 1e-9),
+      );
+      expect(
+        confidenceAlpha(0.5, full: 1),
+        closeTo(minConfidenceShare + (1 - minConfidenceShare) / 2, 1e-9),
+      );
+      // out of range values are clamped
+      expect(confidenceAlpha(2, full: 1), 1.0);
+      expect(confidenceAlpha(-1, full: 1), closeTo(minConfidenceShare, 1e-9));
+    });
+  });
 }

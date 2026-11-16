@@ -107,6 +107,9 @@ class CoverageGrid(Base):
     rows: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     # Row-major list of dBm values, null where there is no data.
     values: Mapped[list[float | None]] = mapped_column(JSONB, nullable=False)
+    # Per-cell confidence 0..1 in the same layout; null on grids stored before it
+    # existed, which readers treat as 1.
+    confidence: Mapped[list[float | None] | None] = mapped_column(JSONB, nullable=True)
     good_pct: Mapped[float] = mapped_column(REAL, nullable=False)
     fair_pct: Mapped[float] = mapped_column(REAL, nullable=False)
     dead_pct: Mapped[float] = mapped_column(REAL, nullable=False)

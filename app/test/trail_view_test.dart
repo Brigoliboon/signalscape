@@ -63,6 +63,24 @@ void main() {
     );
   });
 
+  testWidgets('draws a heatmap with per-cell confidence', (tester) async {
+    final g = PreviewGrid(
+      floorId: 'f1',
+      cellM: 2,
+      cols: 3,
+      rows: 2,
+      x0: -2,
+      y0: -2,
+      values: const [-50, -75, null, -90, null, -60],
+      confidence: const [1, 0.25, null, 0, null, 0.6],
+      computedAt: DateTime(2026, 11, 16),
+    );
+    expect(g.confidenceAt(1, 0), 0.25);
+    expect(g.confidenceAt(2, 0), 1.0);
+    await pump(tester, preview: g);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a grid far from the trail still fits on screen', (tester) async {
     final far = PreviewGrid(
       floorId: 'f1',

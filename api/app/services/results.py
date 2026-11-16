@@ -37,6 +37,7 @@ class GridResult:
     bssid: str | None
     grid: proc.Grid
     values: list[float | None]
+    confidence: list[float | None]
     good_pct: float
     fair_pct: float
     dead_pct: float
@@ -149,6 +150,14 @@ def _grid_result(
         bssid=bssid,
         grid=grid,
         values=[None if np.isnan(v) else float(v) for v in grid.values],
+        confidence=[
+            None if np.isnan(v) else float(v)
+            for v in (
+                grid.confidence
+                if grid.confidence is not None
+                else np.full(len(grid.values), np.nan)
+            )
+        ],
         good_pct=good,
         fair_pct=fair,
         dead_pct=dead,
@@ -240,6 +249,7 @@ def persist(
                     cols=item.grid.cols,
                     rows=item.grid.rows,
                     values=item.values,
+                    confidence=item.confidence,
                     good_pct=item.good_pct,
                     fair_pct=item.fair_pct,
                     dead_pct=item.dead_pct,
@@ -332,6 +342,7 @@ def computation_result(
                         cols=item.grid.cols,
                         rows=item.grid.rows,
                         values=item.values,
+                        confidence=item.confidence,
                         good_pct=item.good_pct,
                         fair_pct=item.fair_pct,
                         dead_pct=item.dead_pct,
@@ -425,6 +436,7 @@ def coverage_read(grid: CoverageGrid, floor: Floor) -> CoverageRead:
         cols=grid.cols,
         rows=grid.rows,
         values=grid.values,
+        confidence=grid.confidence,
         good_pct=grid.good_pct,
         fair_pct=grid.fair_pct,
         dead_pct=grid.dead_pct,

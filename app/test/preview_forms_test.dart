@@ -49,6 +49,34 @@ void main() {
       expect(g.y0, closeTo(20, 1e-3));
     });
 
+    test('reads per-cell confidence, and treats none as 1', () {
+      final g = PreviewGrid.fromJson(
+        {
+          ...grid(),
+          'confidence': [0.5, null, 2, -1],
+        },
+        originLat: 14.0,
+        originLng: 121.0,
+      )!;
+      expect(g.confidenceAt(0, 0), 0.5);
+      expect(g.confidenceAt(1, 0), 1.0); // no data, so no confidence: 1
+      expect(g.confidenceAt(0, 1), 1.0); // clamped
+      expect(g.confidenceAt(1, 1), 0.0);
+      for (final j in [
+        grid(), // grids stored before confidence existed
+        {...grid(), 'confidence': null},
+        {
+          ...grid(),
+          'confidence': [0.5], // the wrong size is ignored
+        },
+        {...grid(), 'confidence': 'nope'},
+      ]) {
+        final old = PreviewGrid.fromJson(j, originLat: 14, originLng: 121)!;
+        expect(old.confidence, isNull);
+        expect(old.confidenceAt(1, 1), 1.0);
+      }
+    });
+
     test('refuses grids that cannot be drawn', () {
       for (final j in [
         grid(cols: 0),
