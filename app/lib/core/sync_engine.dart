@@ -36,13 +36,20 @@ abstract class SyncTransport {
 }
 
 class SyncException implements Exception {
-  SyncException(this.message, {required this.retryable});
+  SyncException(this.message, {required this.retryable, this.statusCode});
 
   final String message;
 
   /// Network trouble, 5xx, 408 and 429 can be retried; other errors need a
   /// person (for example a 401 or a survey that is already completed).
   final bool retryable;
+
+  /// HTTP status when the failure came from the API; null for network errors.
+  final int? statusCode;
+
+  /// The survey (or its building) is gone on the server, so retrying will
+  /// not help and the local copy can be discarded.
+  bool get isGone => statusCode == 404;
 
   @override
   String toString() => message;

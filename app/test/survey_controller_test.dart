@@ -344,7 +344,67 @@ void main() {
           jsonResponse({'detail': 'Nope'}, 422);
       expect(await c.end(), isFalse);
       expect(c.phase, SurveyPhase.endFailed);
+      expect(c.surveyGone, isFalse);
       expect(await db.activeFor('u1'), isNotNull);
+    });
+
+    Future<void> seedActive() async {
+      await db.saveActive(
+        const ActiveSurvey(
+          surveyId: 's1',
+          userId: 'u1',
+          buildingId: 'b1',
+          buildingName: 'Main',
+          floorId: 'f0',
+          originLat: 0,
+          originLng: 0,
+          x: 0,
+          y: 0,
+          steps: 0,
+          checkpointSteps: 0,
+          startedMs: 1,
+          readings: 1,
+          checkpoints: 0,
+        ),
+      );
+    }
+
+    test('a 404 when completing marks the survey as gone', () async {
+      c.phase = SurveyPhase.active;
+      await seedActive();
+      routes['PATCH /api/surveys/s1'] = (_) =>
+          jsonResponse({'detail': 'Not found'}, 404);
+      expect(await c.end(), isFalse);
+      expect(c.phase, SurveyPhase.endFailed);
+      expect(c.surveyGone, isTrue);
+      expect(c.error, contains('floor or building'));
+      expect(await db.activeFor('u1'), isNotNull);
+    });
+
+    test('a 404 when uploading marks the survey as gone', () async {
+      c.phase = SurveyPhase.active;
+      await db.add(SyncKind.readings, 's1', reading('a', 0, 0));
+      await seedActive();
+      routes['POST /api/surveys/s1/readings'] = (_) =>
+          jsonResponse({'detail': 'Not found'}, 404);
+      expect(await c.end(), isFalse);
+      expect(c.surveyGone, isTrue);
+      expect(c.error, contains('floor or building'));
+      expect(await db.activeFor('u1'), isNotNull);
+      expect(await db.pendingCount(surveyId: 's1'), 1);
+    });
+
+    test('discardLocal forgets the survey and its readings', () async {
+      c.phase = SurveyPhase.endFailed;
+      c.surveyGone = true;
+      await db.add(SyncKind.readings, 's1', reading('a', 0, 0));
+      await seedActive();
+      await c.discardLocal();
+      expect(c.phase, SurveyPhase.done);
+      expect(c.surveyGone, isFalse);
+      expect(c.error, isNull);
+      expect(await db.activeFor('u1'), isNull);
+      expect(await db.pendingCount(surveyId: 's1'), 0);
     });
   });
 

@@ -541,7 +541,11 @@ class ApiSyncTransport implements SyncTransport {
           e.statusCode >= 500 ||
           e.statusCode == 408 ||
           e.statusCode == 429;
-      throw SyncException(e.message, retryable: retryable);
+      throw SyncException(
+        e.message,
+        retryable: retryable,
+        statusCode: e.statusCode,
+      );
     }
   }
 }

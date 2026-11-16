@@ -8,6 +8,7 @@ import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/models.dart';
 import '../data/session.dart';
+import '../survey/gone_survey.dart';
 import '../survey/survey_controller.dart';
 import '../theme.dart';
 import '../widgets/radar.dart';
@@ -114,6 +115,37 @@ class _SurveyScreenState extends State<SurveyScreen> {
     }
   }
 
+  Future<void> _discard() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        title: const Text(localSurveyGoneTitle),
+        content: const Text(localSurveyGoneMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            key: const ValueKey('discard-local-survey'),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await c.discardLocal();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      const SnackBar(content: Text(localSurveyDiscardedMessage)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -173,7 +205,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  _Actions(c: c, onEnd: _end),
+                  _Actions(c: c, onEnd: _end, onDiscard: _discard),
                 ],
               ),
             ),
@@ -612,10 +644,15 @@ class _SyncLine extends StatelessWidget {
 }
 
 class _Actions extends StatelessWidget {
-  const _Actions({required this.c, required this.onEnd});
+  const _Actions({
+    required this.c,
+    required this.onEnd,
+    required this.onDiscard,
+  });
 
   final SurveyController c;
   final VoidCallback onEnd;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -672,6 +709,15 @@ class _Actions extends StatelessWidget {
                 ),
               ],
             ),
+            if (c.surveyGone) ...[
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                key: const ValueKey('discard-unfinished'),
+                onPressed: onDiscard,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Discard local survey'),
+              ),
+            ],
           ],
         );
       case SurveyPhase.ending:
@@ -686,6 +732,14 @@ class _Actions extends StatelessWidget {
           ],
         );
       case SurveyPhase.endFailed:
+        if (c.surveyGone) {
+          return FilledButton.icon(
+            key: const ValueKey('discard-unfinished'),
+            onPressed: onDiscard,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Discard local survey'),
+          );
+        }
         return FilledButton.icon(
           onPressed: onEnd,
           icon: const Icon(Icons.refresh),
