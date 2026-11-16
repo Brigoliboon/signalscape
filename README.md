@@ -28,6 +28,7 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 signalscape/
 ├── api/                  # FastAPI backend
 ├── app/                  # Flutter Android app
+├── docs/                 # Design, CI/CD, deployment and user documentation
 ├── .github/workflows/    # CI and CD
 ├── REQUIREMENTS.md       # What to build
 ├── IMPLEMENTATION.md     # Build order and progress
@@ -95,6 +96,21 @@ CD deploys on a runner installed on the server (`runs-on: self-hosted`). The run
 
 ### Public access
 Production runs at https://signalscape.boonbrigoli.site. An A record points that hostname at the VM, and the VM's cloud firewall and `iptables` allow TCP 80 and 443. Caddy serves the hostname from `SITE_ADDRESS`, gets its HTTPS certificate from Let's Encrypt automatically (stored in the `caddy_data` volume), sends `/api/*` to the API, and shows a placeholder page for everything else. Locally `SITE_ADDRESS` defaults to `:80`, plain HTTP.
+
+## Documentation
+All in `docs/`:
+
+| Doc | What it covers |
+|---|---|
+| [DESIGN.md](docs/DESIGN.md) | Database, API, processing maths, offline sync (week 2 design) |
+| [LOCAL_DEV.md](docs/LOCAL_DEV.md) | Set up the API, database and app on your machine; run the tests |
+| [CI_CD.md](docs/CI_CD.md) | The full flow from a push to the live server, job by job |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | The VM, runner, Docker Compose, Caddy and TLS, SSH access, first admin |
+| [BRANCHING.md](docs/BRANCHING.md) | Branch names, pull requests, Actions and branch protection |
+| [CONFIG_AND_SECRETS.md](docs/CONFIG_AND_SECRETS.md) | Every environment variable and GitHub secret (names only) |
+| [RUNBOOK.md](docs/RUNBOOK.md) | Logs, restarts, backups, rollback, key rotation, site-down checklist |
+| [API_GUIDE.md](docs/API_GUIDE.md) | Quick start with `curl` examples (full reference at `/api/docs`) |
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | Surveyor guide for the app |
 
 ## Contributing
 Read `AGENTS.md` first. In short, work through `IMPLEMENTATION.md` in order, use one branch per item, add tests with every change, open a pull request with passing CI, and tick the checkbox in the same pull request.
