@@ -78,6 +78,17 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Saves the profile and keeps the signed-in user up to date. Throws
+  /// [ApiException].
+  Future<void> updateProfile({String? name, int? goodDbm, int? deadDbm}) async {
+    user = await api.updateProfile(
+      name: name,
+      goodDbm: goodDbm,
+      deadDbm: deadDbm,
+    );
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     api.token = null;
     user = null;

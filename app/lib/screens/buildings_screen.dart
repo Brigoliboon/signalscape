@@ -17,6 +17,7 @@ import 'floor_form_screen.dart';
 import 'survey_history_screen.dart';
 import 'survey_screen.dart';
 import 'viewer_screen.dart';
+import 'profile_screen.dart';
 
 /// How the building list can be ordered. [value] is the API's `sort`.
 enum BuildingSort {
@@ -318,6 +319,19 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
           TextButton(
             onPressed: widget.session.signOut,
             child: const Text('Sign out'),
+          ),
+          IconButton(
+            key: const ValueKey('open-profile'),
+            tooltip: 'Profile and settings',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ProfileScreen(
+                  session: widget.session,
+                  openDb: widget.openDb,
+                ),
+              ),
+            ),
           ),
         ],
       ),

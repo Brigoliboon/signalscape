@@ -126,6 +126,40 @@ class ApiClient {
     await _send('POST', '/auth/me/consent');
   }
 
+  /// Saves the name and/or both signal thresholds of your profile and returns
+  /// the new profile. The API wants dead below good (422 otherwise).
+  Future<User> updateProfile({
+    String? name,
+    int? goodDbm,
+    int? deadDbm,
+  }) async => User.fromJson(
+    await _send(
+          'PATCH',
+          '/auth/me',
+          body: {
+            'name': ?name,
+            'good_threshold_dbm': ?goodDbm,
+            'dead_threshold_dbm': ?deadDbm,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Changes the password. A wrong [current] password is a 400.
+  Future<void> changePassword(String current, String next) async {
+    await _send(
+      'PATCH',
+      '/auth/me',
+      body: {'current_password': current, 'password': next},
+    );
+  }
+
+  /// Deletes your account and everything it owns (204). An Admin who is the
+  /// last active one is refused with a 409.
+  Future<void> deleteAccount() async {
+    await _send('DELETE', '/auth/me');
+  }
+
   // --- buildings and floors ---
 
   /// One page of buildings. [sort] is `name`, `created_at`, or either with a
