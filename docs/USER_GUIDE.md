@@ -32,6 +32,16 @@ Open the app. The first screen says **SIGNALSCAPE**, "Map your building's Wi-Fi,
 - New accounts are Surveyors. An administrator can change roles (see [API_GUIDE.md](API_GUIDE.md)).
 - To leave, tap **Sign out** at the top right of the **Buildings** screen.
 
+## 1a. Your profile and settings
+
+On the **Buildings** screen tap the **person icon** at the top right (next to **Sign out**) to open **Profile and settings**.
+
+- **Account** shows your email and role (and, for Surveyors, whether you have given privacy consent). Change your **Name** and tap **Save**. **Save** stays off until something has changed.
+- **Signal thresholds:** two sliders set what counts as a good signal ("Good: ... dBm or stronger", -90 to -30 dBm) and a dead zone ("Dead: weaker than ... dBm", -100 to -40 dBm). Dead must be weaker than good: if it is not, the screen says so and **Save** is off. The values are used the next time a survey is processed; surveys already processed keep the ones they were processed with.
+- **Change password:** type your current password, the new one (at least 8 characters) and the new one again, then tap **Change password**. A wrong current password says "The current password is not right."
+- **Sign out** does the same as the button on the Buildings screen.
+- **Delete account** removes your account and everything it owns: your buildings, floors, floor plans and all your surveys with their readings, heatmaps and access points. The app asks first and you must type **DELETE** before **Delete account** turns on. When it is done, readings saved on this phone that were never uploaded are removed too and you are back at the sign-in screen. This cannot be undone. If the server refuses (for example you are the only active Admin: "Cannot delete the last active admin") nothing is deleted and you stay signed in. Offline, it says "You're offline" and deletes nothing.
+
 ## 2. Privacy notice (first time)
 
 Before your first survey the app shows **Before your first survey** with the **Privacy notice · RA 10173**. It explains why the app asks for data, what it collects (your name, email and hashed password; GPS only while a survey runs, a start fix; Wi-Fi names, signal strengths and the walk), who can see it (you and the server's administrators), how it is protected, and your rights. Read it, tick "I have read the privacy notice and I agree to the use of my data as described.", and tap **Agree and continue**. **Not now** signs you out, and no survey can start until you agree. You are asked only once.

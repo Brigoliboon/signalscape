@@ -14,6 +14,7 @@ import '../theme.dart';
 import 'building_detail_screen.dart';
 import 'building_form_screen.dart';
 import 'floor_form_screen.dart';
+import 'profile_screen.dart';
 import 'survey_screen.dart';
 import 'viewer_screen.dart';
 
@@ -304,6 +305,19 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
           TextButton(
             onPressed: widget.session.signOut,
             child: const Text('Sign out'),
+          ),
+          IconButton(
+            key: const ValueKey('open-profile'),
+            tooltip: 'Profile and settings',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ProfileScreen(
+                  session: widget.session,
+                  openDb: widget.openDb,
+                ),
+              ),
+            ),
           ),
         ],
       ),

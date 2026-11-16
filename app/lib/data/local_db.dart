@@ -222,6 +222,15 @@ class LocalDb implements SyncStore {
 
   Future<void> clearActive() => _db.delete('active_survey');
 
+  /// Forgets everything kept on the phone: held and waiting readings and
+  /// checkpoints, and the unfinished-survey note. Used when an account is
+  /// deleted.
+  Future<void> clearAll() async {
+    await _db.delete('readings');
+    await _db.delete('checkpoints');
+    await _db.delete('active_survey');
+  }
+
   @override
   Future<PendingBatch?> nextBatch(int limit) async {
     // Checkpoints first: there are few, and they are cheap to send.
