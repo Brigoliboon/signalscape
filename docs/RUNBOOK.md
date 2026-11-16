@@ -108,7 +108,7 @@ Restoring over the live database with `pg_restore --clean --if-exists` also work
 
 ## Rolling back a bad deploy
 
-Every deploy pushes an image tagged with the commit SHA, and the VM keeps the images of earlier deploys locally (17 older tags were present on 2026-11-16, so a rollback does not need to download anything).
+Every deploy pushes an image tagged with the commit SHA, and the VM keeps the images of earlier deploys locally (16 older tags besides the running one were present on 2026-11-16, so a rollback does not need to download anything).
 
 1. Find the SHA of the last good version: the commit of the last good merge on GitHub, or `docker images --format '{{.Tag}} {{.CreatedSince}}' ghcr.io/brigoliboon/signalscape/api` on the VM **(tested)**.
 2. Point the stack at it by changing only the `API_IMAGE` line, without printing the file:

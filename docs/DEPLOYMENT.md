@@ -34,7 +34,7 @@ The runner connects **out** to GitHub, so the server does not need an inbound po
 | Public hostname | `signalscape.boonbrigoli.site` |
 | OS | Ubuntu 20.04.6 LTS, x86_64 |
 | Docker | Docker Engine 28.1.1, Docker Compose v2.35.1 |
-| Login user used by the runner and for admin work | `ubuntu` (member of the `docker` group, has sudo) |
+| Login user used by the runner and for admin work | `ubuntu` (member of the `docker` group) |
 | Disk | 45 GB root disk, about 32% used when checked |
 | Listening ports | 22 (SSH), 80 and 443 (Caddy). The API listens on 8000 but only on `127.0.0.1`. |
 | Shared machine | Other, unrelated projects also run on this VM. Everything for SignalScape is in the Docker project `signalscape` (containers `signalscape-api-1`, `signalscape-db-1`, `signalscape-caddy-1`) and the runner folder below. Do not touch anything else. |

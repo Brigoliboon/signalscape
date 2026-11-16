@@ -57,6 +57,7 @@ Notes:
 
 - A **docs-only PR** skips every path-filtered job. Only `changes`, `api-audit` and `CI` run, and `CI` passes.
 - Skipped jobs count as passing, so a PR that touches only `app/` does not run the API jobs, and the other way round. Changing a workflow file runs the API jobs and, if it is `ci.yml`, the app job too.
+- **Docs-only merges still deploy.** CD starts after any successful CI run on a push to `main`, whatever changed, so merging a docs-only PR rebuilds the image and redeploys the same code. It is harmless but takes a few minutes and restarts the API container.
 - **Artifact retention:** `app-release-apk` is kept for 90 days. The workflow sets no `retention-days`, so it uses the repository default, which is 90 days (also the maximum allowed). The GitHub API shows an expiry about 90 days after each run. Download it from the run's page under Actions, in the Artifacts section.
 - **Third-party check:** the PR list also shows a `GitGuardian Security Checks` status. It comes from the GitGuardian GitHub app, not from a workflow in this repo. It is not in the required checks.
 
