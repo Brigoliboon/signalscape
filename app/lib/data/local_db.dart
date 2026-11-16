@@ -290,4 +290,17 @@ class LocalDb implements SyncStore {
     }
     return total;
   }
+
+  /// Forgets one survey's readings and checkpoints and the unfinished-survey
+  /// note, for a survey whose building was deleted on the server.
+  Future<void> discardSurvey(String surveyId) async {
+    for (final table in const ['readings', 'checkpoints']) {
+      await _db.delete(table, where: 'survey_id = ?', whereArgs: [surveyId]);
+    }
+    await _db.delete(
+      'active_survey',
+      where: 'survey_id = ?',
+      whereArgs: [surveyId],
+    );
+  }
 }

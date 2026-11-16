@@ -53,6 +53,7 @@ The **Buildings** screen lists your buildings. You can:
 - search ("Search buildings"), sort (Name A–Z, Name Z–A, Newest first, Oldest first) and page through with **Load more**;
 - add one with **Add building** (name required, address and description optional);
 - open one to see its floors. **Edit building** (pencil icon) changes the details.
+- **Delete building** (bin icon at the top right of the building page; not shown to Viewers) asks first and says what goes: the building, its floors with their floor plans, and every survey done there (readings, heatmaps and access points). It cannot be undone. When it is done you are back on the list. If you had left a survey of that building unfinished on this phone, its saved readings are removed too, since they could no longer be uploaded. Offline, or if the server refuses, the screen says so and nothing is deleted.
 
 An empty list says "No buildings yet. Add the first one to start surveying." (Viewer accounts see "No buildings here. Viewers see surveys that are shared with them, not the building list.")
 
@@ -80,6 +81,8 @@ On the building page tap **Add floor**:
 - **Choose floor plan**, optional: a PNG or JPEG picture of the floor, up to 5 MB. It is stored with the floor and shown as a small thumbnail.
 
 Add a floor for every floor you will walk, before you start. Two floors cannot have the same level in one building.
+
+**Delete floor:** the bin icon next to a floor's pencil asks first. It deletes the floor, its floor plan and the readings, heatmaps and access points recorded on that floor; surveys of the other floors are kept. This cannot be undone. Offline, or if the server refuses, nothing is deleted and the screen says why.
 
 ## 5. Starting a survey
 

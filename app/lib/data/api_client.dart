@@ -220,6 +220,16 @@ class ApiClient {
         as Map<String, dynamic>,
   );
 
+  /// Deletes a building with its floors, floor plans and surveys (204).
+  Future<void> deleteBuilding(String id) async {
+    await _send('DELETE', '/buildings/$id');
+  }
+
+  /// Deletes a floor, its plan and the readings recorded on it (204).
+  Future<void> deleteFloor(String id) async {
+    await _send('DELETE', '/floors/$id');
+  }
+
   Future<Floor> createFloor(
     String buildingId,
     int level,

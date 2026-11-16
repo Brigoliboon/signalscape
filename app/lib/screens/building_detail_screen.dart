@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../data/local_db.dart';
 import '../data/models.dart';
 import '../data/session.dart';
 import '../theme.dart';
@@ -17,11 +18,13 @@ class BuildingDetailScreen extends StatefulWidget {
     required this.session,
     required this.building,
     this.pickPlan = pickPlanFromGallery,
+    this.openDb = LocalDb.open,
   });
 
   final Session session;
   final Building building;
   final PlanPicker pickPlan;
+  final Future<LocalDb> Function() openDb;
 
   @override
   State<BuildingDetailScreen> createState() => _BuildingDetailScreenState();
@@ -33,6 +36,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   bool _loading = true;
   String? _error;
   int _version = 0;
+  bool _deleting = false;
 
   ApiClient get _api => widget.session.api;
   bool get _canEdit => canEditBuildings(widget.session.user!);
@@ -90,6 +94,114 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     if (saved != null) await _load();
   }
 
+  Future<bool> _confirmDelete({
+    required String title,
+    required String body,
+    required String action,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-delete'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              minimumSize: const Size(0, 44),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  String _deleteFailure(ApiException e) => e.isNetwork
+      ? "You're offline. Nothing was deleted."
+      : 'Could not delete: ${e.message}';
+
+  Future<void> _deleteBuilding() async {
+    final b = _building;
+    final n = b.floors.length;
+    final ok = await _confirmDelete(
+      title: 'Delete ${b.name}?',
+      body:
+          'This deletes the building, its $n floor${n == 1 ? '' : 's'} with '
+          'their floor plans, and every survey done here: readings, heatmaps '
+          'and access points. This cannot be undone.',
+      action: 'Delete building',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await _api.deleteBuilding(b.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      _toast(_deleteFailure(e));
+      return;
+    }
+    await _forgetLocalSurvey(b.id);
+    if (!mounted) return;
+    _toast('${b.name} was deleted.');
+    Navigator.of(context).pop();
+  }
+
+  /// A survey of the deleted building that this phone never finished can no
+  /// longer be uploaded, so its saved readings and the "resume" note go too.
+  Future<void> _forgetLocalSurvey(String buildingId) async {
+    try {
+      final db = await widget.openDb();
+      final a = await db.activeFor(widget.session.user!.id);
+      if (a != null && a.buildingId == buildingId) {
+        await db.discardSurvey(a.surveyId);
+      }
+    } catch (_) {
+      // No local database: nothing to forget.
+    }
+  }
+
+  Future<void> _deleteFloor(Floor f) async {
+    final ok = await _confirmDelete(
+      title: 'Delete ${f.label}?',
+      body:
+          'This deletes the floor, its floor plan and the readings, heatmaps '
+          'and access points recorded on it. Surveys of the other floors are '
+          'kept. This cannot be undone.',
+      action: 'Delete floor',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await _api.deleteFloor(f.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      _toast(_deleteFailure(e));
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _deleting = false);
+    _toast('${f.label} was deleted.');
+    await _load();
+  }
+
   Future<void> _startSurvey() async {
     final floor = _startFloor;
     if (floor == null) return;
@@ -115,6 +227,13 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
               tooltip: 'Edit building',
               icon: const Icon(Icons.edit_outlined),
               onPressed: _editBuilding,
+            ),
+          if (_canEdit)
+            IconButton(
+              key: const ValueKey('delete-building'),
+              tooltip: 'Delete building',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _deleting ? null : _deleteBuilding,
             ),
         ],
       ),
@@ -220,10 +339,23 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                       '${f.hasPlan ? ' · plan uploaded' : ' · no plan'}',
                     ),
                     trailing: _canEdit
-                        ? IconButton(
-                            tooltip: 'Edit ${f.label}',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _editFloor(f),
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit ${f.label}',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _editFloor(f),
+                              ),
+                              IconButton(
+                                key: ValueKey('delete-floor-${f.id}'),
+                                tooltip: 'Delete ${f.label}',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: _deleting
+                                    ? null
+                                    : () => _deleteFloor(f),
+                              ),
+                            ],
                           )
                         : null,
                     onTap: _canEdit ? () => _editFloor(f) : null,
