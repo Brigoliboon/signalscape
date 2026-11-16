@@ -118,6 +118,17 @@ If you close the app or the phone dies mid-survey, the next time you open the **
 
 Pressing back during a survey asks "Leave this survey?" ("Readings already taken stay on this phone and keep uploading…"). **Keep surveying** stays; **Leave** goes back.
 
+## 10a. Survey history
+
+The **clock icon** at the top right of the Buildings screen opens **Survey history**: every survey you may see, newest first. A surveyor sees their own surveys, an admin sees all of them, and a viewer sees the ones shared with them.
+
+- Each card shows the building, when the survey started and its status: **In progress**, **Paused**, **Not processed** (finished but no heatmap yet) or **Processed**.
+- The chips at the top filter by status (**All**, **Processed**, **Not processed**, **In progress**) and the dropdown filters by building. Pull down to refresh, and **Load more** shows the next page.
+- Tap a card for its details: status, start time, length, when it was processed, the phone used and any notes.
+  - **Open on the 2D map** and **Open in 3D** show the results. For a survey that is not processed, the map says "Not processed yet" and a surveyor sees **Process now**.
+  - **Delete survey** (surveyors and admins; not viewers, and a surveyor only for their own surveys) asks you to confirm first, then removes the survey for good with its readings, checkpoints, heatmaps and estimated access points. If the phone still had that survey saved as unfinished, that note is cleared too.
+- If the list cannot load, the screen says why ("You're offline" or the server's message) and **Try again** asks again.
+
 ## 11. The 3D view
 
 **Coverage in 3D** shows your floors stacked, each with a smooth heatmap, estimated access points and your walk.
