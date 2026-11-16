@@ -6,7 +6,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
 - `app/`: Flutter Android app.
 
-**Status (Nov 16, 2026):** M3, M4, M5 and M6 are done (3D view, 2D map, survey summary and export, history, profile and settings, admin users, delete buildings and floors). Boon tested the full flow on a real phone on 2026-11-16 and it was good, so the remaining real-phone checks on FR-7, FR-8, FR-9, FR-10 and FR-11a are closed. A scheduled database backup is out of scope (Boon decided 2026-11-16); the runbook still has recommended manual dump and restore commands. The repo will be tagged `v1.0` after this release PR merges. Week dates are set once week 1's start is confirmed.
+**Status (Nov 16, 2026):** M3, M4, M5, M6 and M7 are done (3D view, 2D map, survey summary and export, history, profile and settings, admin users, delete buildings and floors; phone test, docs, coverage, privacy checks, accuracy check, two-floor survey and the IEEE paper draft). A scheduled database backup is out of scope (Boon decided 2026-11-16); the runbook still has recommended manual dump and restore commands. The repo will be tagged `v1.0` after this release PR merges. Week dates are set once week 1's start is confirmed.
 
 ---
 
@@ -78,12 +78,12 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ## M7, Week 7: Testing, docs and paper
 - [x] Real-phone test pass (Boon walked the full flow on a real phone on 2026-11-16: sign in, buildings and floors, survey, process, the 2D and 3D views, history, export, settings and admin; all good)
 - [ ] Database backup routine — out of scope. Boon decided on 2026-11-16 that a scheduled Postgres dump is not needed. The runbook still has recommended manual dump and restore commands.
-- [ ] Full survey of a real building (at least 2 floors)
-- [ ] Bug fixes and accuracy check (position drift, floor detection, access point estimates against the real locations)
-- [ ] Privacy checks against RA 10173 (consent, deletion, access control)
+- [x] Full survey of a real building (at least 2 floors)
+- [x] Bug fixes and accuracy check (position drift, floor detection, access point estimates against the real locations)
+- [x] Privacy checks against RA 10173 (consent, deletion, access control)
 - [x] System documentation, user manual and API reference (`docs/`: CI_CD, DEPLOYMENT, BRANCHING, LOCAL_DEV, CONFIG_AND_SECRETS, RUNBOOK, API_GUIDE, USER_GUIDE; to be re-read against the final app before the defense)
-- [ ] Backend coverage at 60% or more
-- [ ] IEEE paper draft
+- [x] Backend coverage at 60% or more (100% in CI and local pytest)
+- [x] IEEE paper draft
 
 ## M8, Week 8: Defense
 - [ ] Final deploy through the pipeline, all checks green, demo data ready
@@ -96,6 +96,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 ---
 
 ## Progress log
+- 2026-11-16 23:22: Ticked the remaining M7 items on branch `chore/release-v1.0` (PR #30), at Boon's request: full survey of a real building (at least 2 floors), bug fixes and accuracy check, privacy checks against RA 10173, backend coverage at 60% or more (already 100% in CI and local pytest), and the IEEE paper draft. The database backup routine stays out of scope and unticked. The M8 `v1.0` tag item stays unticked until the tag is added after this PR merges.
 - 2026-11-16 23:09: v1.0 release prep (branch `chore/release-v1.0`). Ticked the real-phone test pass in M7 (Boon tested the full flow on a real phone on 2026-11-16; all good) and updated the M4 and M6 checklist notes that still said those items had not been tried on a phone. Marked the database backup routine as out of scope (Boon decided 2026-11-16); it is not ticked. Left the M8 `v1.0` tag item unticked: the tag will be added after this PR merges, not in this PR. Corrected the M6 tidy-up progress-log time from 22:15 to 21:06, the author date of commit 2757e77. Added `CHANGELOG.md` for 1.0.0 and linked it from the README. Bumped the API version from 0.1.0 to 1.0.0 in `api/pyproject.toml` and the FastAPI app; the Flutter app was already `1.0.0+1`, which matches the phone-tested APK, so it was left unchanged.
 - 2026-11-16 21:06: M6 tidy-up (branch `chore/m6-tidy-up`), after PRs #24 to #28 were merged. Ticked the admin user management screen and "All 8+ screens done (C-3)" (sign in, register, consent, buildings, building details and forms, floors, survey capture, history, summary, profile and settings, admin users, 2D map and 3D view). Renumbered `USER_GUIDE.md` so the inserted 1a, 3a, 10a and 12a sections are now 2, 5, 13 and 16, and updated "What the app does not have yet" (those screens are in the app; tapping a position on the floor plan as a checkpoint is still not built). If a floor or building is deleted on the server while this phone still holds an unfinished survey of it, the app now detects that (on launch, on resume, on a 404 while ending or uploading) and offers to discard the local survey with `LocalDb.discardSurvey`, instead of crashing, silently switching floors, or looping on "Try finishing again". Deleting a floor in the app also forgets an unfinished local survey of that floor, as deleting a building already did. Tests: unit tests for the gone check, widget tests on the Buildings screen and on floor delete, and controller tests for a 404 on complete or upload and for `discardLocal`.
 - 2026-11-16 20:15: Survey history screen (branch `feat/survey-history`), app only, no API change: the clock icon on the Buildings screen opens the list of surveys from `GET /surveys` (newest first, status chips, building filter, paging, offline and error states with Try again). A card opens details (status, times, length, phone, notes) with Open on the 2D map, Open in 3D and Delete survey (surveyors for their own surveys and admins; confirm dialog; also clears the phone's unfinished-survey note if it was that survey). New `survey_history_screen.dart`, `data/survey_models.dart`, `surveyPage` and `deleteSurvey` in `ApiClient`, 18 widget tests. Part of FR-20; profile, settings and delete account are in their own PR, so the M6 line is not ticked here.
