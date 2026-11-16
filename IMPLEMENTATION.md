@@ -6,7 +6,7 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - `api/`: REST API, database migrations, interpolation and access point estimation, Docker setup.
 - `app/`: Flutter Android app.
 
-**Status (Nov 16, 2026):** M3, M5 and M6 are done in code (3D view, 2D map, survey summary and export, history, profile and settings, admin users, delete buildings and floors). M4 is code-complete and CI-green in the app (register and consent, building and floor management with plans, barometer floors, drift-corrected checkpoints, live preview heatmap, resume), but nothing in M4 or the new M6 screens has been tested on a real phone yet, so FR-7, FR-8, FR-9, FR-10 and FR-11a still need that test. Week dates are set once week 1's start is confirmed.
+**Status (Nov 16, 2026):** M3, M4, M5 and M6 are done (3D view, 2D map, survey summary and export, history, profile and settings, admin users, delete buildings and floors). Boon tested the full flow on a real phone on 2026-11-16 and it was good, so the remaining real-phone checks on FR-7, FR-8, FR-9, FR-10 and FR-11a are closed. A scheduled database backup is out of scope (Boon decided 2026-11-16); the runbook still has recommended manual dump and restore commands. The repo will be tagged `v1.0` after this release PR merges. Week dates are set once week 1's start is confirmed.
 
 ---
 
@@ -49,13 +49,13 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [x] CI for the app: `flutter analyze`, format check, `flutter test`, release APK build (CI-7 to CI-9)
 - [x] Sign in, register and consent screens wired to the API
 - [x] Building list, details and edit screens
-- [x] Wi-Fi scanning: SSID, BSSID, RSSI, frequency, timestamp (FR-7) (code done, CI green, still to be tested on a real phone)
-- [x] Step detection and heading for position (FR-8) (code done, CI green, still to be tested on a real phone)
-- [x] Barometer floor detection, with manual floor fallback (FR-9) (code done, CI green, still to be tested on a real phone)
-- [x] Checkpoints to correct drift (FR-10) (code done, CI green, still to be tested on a real phone)
+- [x] Wi-Fi scanning: SSID, BSSID, RSSI, frequency, timestamp (FR-7) (code done, CI green, phone-tested 2026-11-16)
+- [x] Step detection and heading for position (FR-8) (code done, CI green, phone-tested 2026-11-16)
+- [x] Barometer floor detection, with manual floor fallback (FR-9) (code done, CI green, phone-tested 2026-11-16)
+- [x] Checkpoints to correct drift (FR-10) (code done, CI green, phone-tested 2026-11-16)
 - [x] Offline storage and upload to the API (FR-11)
 - [x] Survey readings upload endpoint (FR-12)
-- [x] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a) (code done, CI green, still to be tested on a real phone)
+- [x] Live trail colored by signal level during a survey, and a preview heatmap refreshed about every 60 s when online (FR-11a) (code done, CI green, phone-tested 2026-11-16)
 
 ## M5, Week 5: Processing (feature-complete part 1)
 - [x] Coverage grid per floor and per network by interpolation (FR-13)
@@ -68,14 +68,16 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [x] Three.js 3D view with stacked floors and coverage heatmaps (FR-16)
 - [x] Filter by network and floor (FR-17)
 - [x] Dead zones and estimated access points marked (FR-18)
-- [x] Survey summary and CSV export (FR-19, FR-21) (screen and share-sheet export done; not yet tried on a real phone)
-- [x] 2D map view from GeoJSON, one layer per floor (FR-16a) (code done, CI green; still to be tested on a real phone, and the Mapbox token has to be set as the `MAPBOX_TOKEN` secret for Mapbox tiles)
+- [x] Survey summary and CSV export (FR-19, FR-21) (screen and share-sheet export done; phone-tested 2026-11-16)
+- [x] 2D map view from GeoJSON, one layer per floor (FR-16a) (code done, CI green, phone-tested 2026-11-16; Mapbox tiles need the `MAPBOX_TOKEN` secret in CI APK builds)
 - [x] GeoJSON export of coverage, access points and readings (FR-21)
-- [x] Survey history, profile and settings, delete account (FR-20) (profile, settings and delete account in this PR; survey history in PR #24; CI green, not yet tried on a real phone)
-- [x] Admin user management screen (CI green, not yet tried on a real phone)
+- [x] Survey history, profile and settings, delete account (FR-20) (profile, settings, delete account and survey history; phone-tested 2026-11-16)
+- [x] Admin user management screen (CI green, phone-tested 2026-11-16)
 - [x] All 8+ screens done (C-3)
 
 ## M7, Week 7: Testing, docs and paper
+- [x] Real-phone test pass (Boon walked the full flow on a real phone on 2026-11-16: sign in, buildings and floors, survey, process, the 2D and 3D views, history, export, settings and admin; all good)
+- [ ] Database backup routine — out of scope. Boon decided on 2026-11-16 that a scheduled Postgres dump is not needed. The runbook still has recommended manual dump and restore commands.
 - [ ] Full survey of a real building (at least 2 floors)
 - [ ] Bug fixes and accuracy check (position drift, floor detection, access point estimates against the real locations)
 - [ ] Privacy checks against RA 10173 (consent, deletion, access control)
@@ -87,14 +89,15 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 - [ ] Final deploy through the pipeline, all checks green, demo data ready
 - [ ] Slides and demo run-through
 - [ ] IEEE paper final
-- [ ] Repo tagged `v1.0`
+- [ ] Repo tagged `v1.0` (will be tagged after this PR merges)
 - [ ] Signed scoresheet
 - [ ] Live demo and defense
 
 ---
 
 ## Progress log
-- 2026-11-16 22:15: M6 tidy-up (branch `chore/m6-tidy-up`), after PRs #24 to #28 were merged. Ticked the admin user management screen and "All 8+ screens done (C-3)" (sign in, register, consent, buildings, building details and forms, floors, survey capture, history, summary, profile and settings, admin users, 2D map and 3D view). Renumbered `USER_GUIDE.md` so the inserted 1a, 3a, 10a and 12a sections are now 2, 5, 13 and 16, and updated "What the app does not have yet" (those screens are in the app; tapping a position on the floor plan as a checkpoint is still not built). If a floor or building is deleted on the server while this phone still holds an unfinished survey of it, the app now detects that (on launch, on resume, on a 404 while ending or uploading) and offers to discard the local survey with `LocalDb.discardSurvey`, instead of crashing, silently switching floors, or looping on "Try finishing again". Deleting a floor in the app also forgets an unfinished local survey of that floor, as deleting a building already did. Tests: unit tests for the gone check, widget tests on the Buildings screen and on floor delete, and controller tests for a 404 on complete or upload and for `discardLocal`.
+- 2026-11-16 23:09: v1.0 release prep (branch `chore/release-v1.0`). Ticked the real-phone test pass in M7 (Boon tested the full flow on a real phone on 2026-11-16; all good) and updated the M4 and M6 checklist notes that still said those items had not been tried on a phone. Marked the database backup routine as out of scope (Boon decided 2026-11-16); it is not ticked. Left the M8 `v1.0` tag item unticked: the tag will be added after this PR merges, not in this PR. Corrected the M6 tidy-up progress-log time from 22:15 to 21:06, the author date of commit 2757e77. Added `CHANGELOG.md` for 1.0.0 and linked it from the README. Bumped the API version from 0.1.0 to 1.0.0 in `api/pyproject.toml` and the FastAPI app; the Flutter app was already `1.0.0+1`, which matches the phone-tested APK, so it was left unchanged.
+- 2026-11-16 21:06: M6 tidy-up (branch `chore/m6-tidy-up`), after PRs #24 to #28 were merged. Ticked the admin user management screen and "All 8+ screens done (C-3)" (sign in, register, consent, buildings, building details and forms, floors, survey capture, history, summary, profile and settings, admin users, 2D map and 3D view). Renumbered `USER_GUIDE.md` so the inserted 1a, 3a, 10a and 12a sections are now 2, 5, 13 and 16, and updated "What the app does not have yet" (those screens are in the app; tapping a position on the floor plan as a checkpoint is still not built). If a floor or building is deleted on the server while this phone still holds an unfinished survey of it, the app now detects that (on launch, on resume, on a 404 while ending or uploading) and offers to discard the local survey with `LocalDb.discardSurvey`, instead of crashing, silently switching floors, or looping on "Try finishing again". Deleting a floor in the app also forgets an unfinished local survey of that floor, as deleting a building already did. Tests: unit tests for the gone check, widget tests on the Buildings screen and on floor delete, and controller tests for a 404 on complete or upload and for `discardLocal`.
 - 2026-11-16 20:15: Survey history screen (branch `feat/survey-history`), app only, no API change: the clock icon on the Buildings screen opens the list of surveys from `GET /surveys` (newest first, status chips, building filter, paging, offline and error states with Try again). A card opens details (status, times, length, phone, notes) with Open on the 2D map, Open in 3D and Delete survey (surveyors for their own surveys and admins; confirm dialog; also clears the phone's unfinished-survey note if it was that survey). New `survey_history_screen.dart`, `data/survey_models.dart`, `surveyPage` and `deleteSurvey` in `ApiClient`, 18 widget tests. Part of FR-20; profile, settings and delete account are in their own PR, so the M6 line is not ticked here.
 - 2026-11-16 19:28: Restored the original first-pass data-flow and CI/CD diagrams (branch `docs/architecture-diagrams`). The data-flow diagram is the left-to-right staircase layout and the CI/CD diagram is the wide left-to-right layout with the GitHub cluster and the Ubuntu VM on the right, at their original pixel sizes (no shrink). System architecture is unchanged. Nothing ticked.
 - 2026-11-16 20:40: Survey summary and export (branch `feat/survey-summary-csv`), app only, no API change. New Survey summary screen from the summary icon in the app bar of the 2D map and the 3D view: totals over all floors (readings used of taken, area covered, access points, area-weighted good, fair and dead shares) and one card per floor, from `GET /surveys/{id}/summary`; not-processed (409) with Process now for surveyors, offline and error states. **Export readings (CSV)** (`GET /surveys/{id}/export.csv`) and **Export coverage (GeoJSON)** go to the phone's share sheet through the new `share_plus` dependency (the file is built in memory, so no storage permission). `share_plus` is the only change to `pubspec.yaml`. New `survey_summary_screen.dart`, `data/summary_models.dart`, `core/export_share.dart`, `ApiClient.exportCsv`, 16 tests (the share sheet is replaced by a fake in tests). Ticks the summary and CSV export line (FR-19, FR-21). Not seen on a real phone.
