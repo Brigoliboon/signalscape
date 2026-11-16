@@ -2,6 +2,14 @@
 
 Draft for review. Covers the database schema, the REST API, access control and the processing math. Requirement IDs (FR-x, C-x) refer to `REQUIREMENTS.md`.
 
+## Architecture overview
+
+How the phone, the map tiles, the API and the 3D viewer fit together. A walk-through of the same path, from a Wi-Fi scan to the heatmap, is under [Processing math](#5-processing-math).
+
+![SignalScape system architecture: the Flutter Android app talks to Caddy and FastAPI on the VM, loads Mapbox or OpenStreetMap tiles, and opens the three.js 3D viewer in a browser](images/architecture/signalscape_system_architecture.png)
+
+[SVG](images/architecture/signalscape_system_architecture.svg)
+
 ## 1. Conventions
 
 - **IDs:** UUID v4 for every table except `scan_readings` (bigint, for volume).
@@ -238,6 +246,12 @@ Base path `/api`. JSON in and out. Auth is `Authorization: Bearer <JWT>` (HS256,
 **GeoJSON output:** coverage cells are `Polygon` features (properties `rssi_dbm`, `level` good/fair/dead, `floor_level`, `bssid`); access points and readings are `Point` features (`ssid`, `bssid`, `floor_level`, `rssi_dbm`). Map clients show one layer per `floor_level`. The app's 2D map (FR-16a) uses `flutter_map` with Mapbox raster tiles in three looks the person can pick (Satellite `satellite-streets-v12`, the default; Streets light `light-v11`; Streets dark `dark-v11`; same token from `--dart-define=MAPBOX_TOKEN`, choice kept while the app runs; without a token it falls back to the OpenStreetMap street map and credit and the style picker is disabled with a note, because Esri's World Imagery is not free for app use). It reads `/summary` (floor names, thresholds, and a 409 when the survey is not processed yet), `/geojson` (cells and access points) `/trail` and `/networks`, draws one floor at a time (the smooth heatmap picture described under "Heatmap display" in section 5, access point markers, the walk with start and end), and fits the camera to that floor's data. A network picker works like the 3D view's: all networks (strongest signal) or one network by SSID and BSSID, which re-reads `/geojson?bssid=` so the cells and access points are that network's only. It can start processing for Surveyors and Admins when the survey has no results yet. Three.js uses the same data, projected back to local meters around the survey origin, with height `floor_level × floor height`.
 
 ## 5. Processing math
+
+The numbered path from a walk-and-scan on the phone, through upload and the cleaning and interpolation stages, to the 2D and 3D heatmaps:
+
+![SignalScape data flow: Wi-Fi scans and dead reckoning on the phone, HTTPS upload through Caddy to FastAPI and PostgreSQL, then range check, median merge, MAD outlier removal, strongest reading per 0.5 m, IDW interpolation, and access-point estimation, then the 2D overlay and 3D viewer](images/architecture/signalscape_data_flow.png)
+
+[SVG](images/architecture/signalscape_data_flow.svg)
 
 **Data cleaning (first step of processing):** drop readings outside -100 to -20 dBm or with a bad BSSID; merge repeat scans of the same BSSID within 1 m and 10 s into one reading using the median RSSI; drop outliers more than 2.5 MAD (median absolute deviation) from their 3 m neighborhood median. Cleaned counts are reported in the summary.
 

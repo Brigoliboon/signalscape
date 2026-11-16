@@ -8,6 +8,12 @@ Related: [CI_CD.md](CI_CD.md) (what the pipeline does), [CONFIG_AND_SECRETS.md](
 
 ## Overview
 
+How a merge on `main` reaches Docker Compose on the VM (full pipeline, including the CI jobs: [CI_CD.md](CI_CD.md)):
+
+![SignalScape CI/CD and deployment, showing the self-hosted runner on the Ubuntu VM starting Caddy, the API and PostgreSQL with Docker Compose](images/architecture/signalscape_cicd_deployment.png)
+
+[SVG](images/architecture/signalscape_cicd_deployment.svg)
+
 ```mermaid
 flowchart LR
     gh["GitHub<br/>repo, Actions, GHCR"] -- "job requests (runner polls out)" --> runner
