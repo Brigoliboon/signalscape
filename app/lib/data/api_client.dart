@@ -7,6 +7,7 @@ import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../core/sync_engine.dart';
 import '../config.dart';
+import 'user_models.dart';
 import 'models.dart';
 import 'survey_models.dart';
 
@@ -463,6 +464,54 @@ class ApiClient {
   Uri viewerUri(String surveyId) => Uri.parse(
     '$baseUrl/api/viewer/#survey=$surveyId&token=${Uri.encodeComponent(token ?? '')}',
   );
+
+  // --- administration (Admins only; anyone else gets 403) ---
+
+  /// One page of users. [sort] is `created_at`, `name` or `email`, with a `-`
+  /// in front for descending.
+  Future<UserPage> userPage({
+    String q = '',
+    String? role,
+    bool? isActive,
+    int page = 1,
+    int pageSize = 20,
+    String sort = '-created_at',
+  }) async => UserPage.fromJson(
+    await _send(
+          'GET',
+          '/users',
+          query: {
+            if (q.trim().isNotEmpty) 'q': q.trim(),
+            'role': ?role,
+            if (isActive != null) 'is_active': '$isActive',
+            'page': '$page',
+            'page_size': '$pageSize',
+            'sort': sort,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Sets a user's role and/or whether the account is active. Demoting or
+  /// deactivating the last active Admin is a 409.
+  Future<AdminUser> updateUser(
+    String id, {
+    String? role,
+    bool? isActive,
+  }) async => AdminUser.fromJson(
+    await _send(
+          'PATCH',
+          '/users/$id',
+          body: {'role': ?role, 'is_active': ?isActive},
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Deletes a user and everything they own (204). The last active Admin is
+  /// refused with a 409.
+  Future<void> deleteUser(String id) async {
+    await _send('DELETE', '/users/$id');
+  }
 }
 
 /// Sends sync batches through [ApiClient] and sorts failures into ones worth
