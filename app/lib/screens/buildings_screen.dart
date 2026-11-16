@@ -14,6 +14,7 @@ import '../theme.dart';
 import 'building_detail_screen.dart';
 import 'building_form_screen.dart';
 import 'floor_form_screen.dart';
+import 'survey_history_screen.dart';
 import 'survey_screen.dart';
 import 'viewer_screen.dart';
 
@@ -301,6 +302,19 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       appBar: AppBar(
         title: const Text('Buildings'),
         actions: [
+          IconButton(
+            key: const ValueKey('open-history'),
+            tooltip: 'Survey history',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => SurveyHistoryScreen(
+                  session: widget.session,
+                  openDb: widget.openDb,
+                ),
+              ),
+            ),
+          ),
           TextButton(
             onPressed: widget.session.signOut,
             child: const Text('Sign out'),

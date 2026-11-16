@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart' show MediaType;
 import '../core/sync_engine.dart';
 import '../config.dart';
 import 'models.dart';
+import 'survey_models.dart';
 
 class ApiException implements Exception {
   ApiException(this.statusCode, this.message);
@@ -302,6 +303,34 @@ class ApiClient {
 
   Future<void> setSurveyStatus(String surveyId, String status) async {
     await _send('PATCH', '/surveys/$surveyId', body: {'status': status});
+  }
+
+  /// One page of the surveys you may see, newest first by default. [status]
+  /// is `active`, `paused`, `completed` or `processed`.
+  Future<SurveyPage> surveyPage({
+    String? buildingId,
+    String? status,
+    int page = 1,
+    int pageSize = 20,
+    String sort = '-started_at',
+  }) async => SurveyPage.fromJson(
+    await _send(
+          'GET',
+          '/surveys',
+          query: {
+            'building_id': ?buildingId,
+            'status': ?status,
+            'page': '$page',
+            'page_size': '$pageSize',
+            'sort': sort,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// Deletes a survey with its readings and results (204).
+  Future<void> deleteSurvey(String surveyId) async {
+    await _send('DELETE', '/surveys/$surveyId');
   }
 
   Future<void> process(String surveyId) async {
