@@ -30,96 +30,96 @@
 <path fill="#f3e5f5" stroke="#6b7280" stroke-width="1.6" d="M572.45,-210.5C572.45,-210.5 693.25,-210.5 693.25,-210.5 699.25,-210.5 705.25,-216.5 705.25,-222.5 705.25,-222.5 705.25,-435.5 705.25,-435.5 705.25,-441.5 699.25,-447.5 693.25,-447.5 693.25,-447.5 572.45,-447.5 572.45,-447.5 566.45,-447.5 560.45,-441.5 560.45,-435.5 560.45,-435.5 560.45,-222.5 560.45,-222.5 560.45,-216.5 566.45,-210.5 572.45,-210.5"/>
 <text xml:space="preserve" text-anchor="middle" x="605.95" y="-428.3" font-family="DejaVu Sans Bold" font-size="16.00" fill="#1f2937">Browser</text>
 </g>
-<!-- 0b6f199ec0f74331a6cd537916bf13ca -->
+<!-- bdd7631292764949830361a45879748c -->
 <g id="node1" class="node">
-<title>0b6f199ec0f74331a6cd537916bf13ca</title>
+<title>bdd7631292764949830361a45879748c</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/onprem/client/users.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="30" y="-423.9"/>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-313.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Users</text>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-296.95" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">(surveyor / viewer</text>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-280.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">accounts)</text>
 </g>
-<!-- 4b7ba58afb7d4a7db21e214889426526 -->
+<!-- 1e4636f5724246b2b04c7241a6b8cd7d -->
 <g id="node3" class="node">
-<title>4b7ba58afb7d4a7db21e214889426526</title>
+<title>1e4636f5724246b2b04c7241a6b8cd7d</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/programming/framework/flutter.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="270.3" y="-747.9"/>
 <text xml:space="preserve" text-anchor="middle" x="320.7" y="-635.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Flutter app</text>
 <text xml:space="preserve" text-anchor="middle" x="320.7" y="-618.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">(Android)</text>
 </g>
-<!-- 0b6f199ec0f74331a6cd537916bf13ca&#45;&gt;4b7ba58afb7d4a7db21e214889426526 -->
+<!-- bdd7631292764949830361a45879748c&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d -->
 <g id="edge8" class="edge">
-<title>0b6f199ec0f74331a6cd537916bf13ca&#45;&gt;4b7ba58afb7d4a7db21e214889426526</title>
+<title>bdd7631292764949830361a45879748c&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M108.29,-470.49C130.5,-529.87 162.13,-562.67 261.26,-647.2"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="258.7,-649.62 268.58,-653.43 263.23,-644.29 258.7,-649.62"/>
 <text xml:space="preserve" text-anchor="middle" x="200.55" y="-498.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> sign in </text>
 </g>
-<!-- b230e60a2db64108ba17d0f6400afe9e -->
+<!-- 978b549fb9d64dc9ac74972ffdc7b73b -->
 <g id="node13" class="node">
-<title>b230e60a2db64108ba17d0f6400afe9e</title>
+<title>978b549fb9d64dc9ac74972ffdc7b73b</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/programming/language/javascript.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="582.45" y="-365.9"/>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-253.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Browser</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-236.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">opens 3D viewer</text>
 </g>
-<!-- 0b6f199ec0f74331a6cd537916bf13ca&#45;&gt;b230e60a2db64108ba17d0f6400afe9e -->
+<!-- bdd7631292764949830361a45879748c&#45;&gt;978b549fb9d64dc9ac74972ffdc7b73b -->
 <g id="edge9" class="edge">
-<title>0b6f199ec0f74331a6cd537916bf13ca&#45;&gt;b230e60a2db64108ba17d0f6400afe9e</title>
+<title>bdd7631292764949830361a45879748c&#45;&gt;978b549fb9d64dc9ac74972ffdc7b73b</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M130.4,-350.61C254.55,-295 292.71,-293.33 570.59,-311.41"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="570.09,-314.88 580.3,-312.04 570.55,-307.9 570.09,-314.88"/>
 <text xml:space="preserve" text-anchor="middle" x="320.7" y="-340.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> sign in </text>
 </g>
-<!-- 87aa5f3a62474c7092983faa1444fa1d -->
+<!-- e870d4660ceb4e53b2a3eea97450a55e -->
 <g id="node2" class="node">
-<title>87aa5f3a62474c7092983faa1444fa1d</title>
+<title>e870d4660ceb4e53b2a3eea97450a55e</title>
 <image xlink:href="/workspace/signalscape-arch/icons/wifi.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="30" y="-747.9"/>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-635.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Wi&#45;Fi scans</text>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-618.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">SSID, BSSID, RSSI</text>
 </g>
-<!-- 87aa5f3a62474c7092983faa1444fa1d&#45;&gt;4b7ba58afb7d4a7db21e214889426526 -->
+<!-- e870d4660ceb4e53b2a3eea97450a55e&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d -->
 <g id="edge1" class="edge">
-<title>87aa5f3a62474c7092983faa1444fa1d&#45;&gt;4b7ba58afb7d4a7db21e214889426526</title>
+<title>e870d4660ceb4e53b2a3eea97450a55e&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M130.53,-702.77C159.59,-704.88 187.22,-704.19 258.25,-700.68"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="258.3,-704.18 268.11,-700.18 257.95,-697.19 258.3,-704.18"/>
 <text xml:space="preserve" text-anchor="middle" x="200.55" y="-703.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> readings </text>
 </g>
-<!-- 9253acb637464c38a2de0d6254d86b38 -->
+<!-- 4a41cea3ac694d01925cf2a765e1dd5e -->
 <g id="node5" class="node">
-<title>9253acb637464c38a2de0d6254d86b38</title>
+<title>4a41cea3ac694d01925cf2a765e1dd5e</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/programming/framework/flutter.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="582.45" y="-791.9"/>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-681.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">2D map</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-664.95" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">flutter_map</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-648.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">network picker</text>
 </g>
-<!-- 4b7ba58afb7d4a7db21e214889426526&#45;&gt;9253acb637464c38a2de0d6254d86b38 -->
+<!-- 1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;4a41cea3ac694d01925cf2a765e1dd5e -->
 <g id="edge3" class="edge">
-<title>4b7ba58afb7d4a7db21e214889426526&#45;&gt;9253acb637464c38a2de0d6254d86b38</title>
+<title>1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;4a41cea3ac694d01925cf2a765e1dd5e</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M370.75,-720.09C419.59,-740.06 452.15,-742.55 570.59,-741.95"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="570.31,-745.45 580.29,-741.9 570.27,-738.45 570.31,-745.45"/>
 <text xml:space="preserve" text-anchor="middle" x="455.48" y="-725.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> overlay </text>
 </g>
-<!-- aa8e1164bd60437e8debbe8d6da2f1fa -->
+<!-- ada860949a3d4cbcaa54bc29dd56edc1 -->
 <g id="node6" class="node">
-<title>aa8e1164bd60437e8debbe8d6da2f1fa</title>
+<title>ada860949a3d4cbcaa54bc29dd56edc1</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/generic/device/mobile.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="582.45" y="-1035.9"/>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-925.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Live trail +</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-908.95" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">live preview</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-892.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">heatmap</text>
 </g>
-<!-- 4b7ba58afb7d4a7db21e214889426526&#45;&gt;aa8e1164bd60437e8debbe8d6da2f1fa -->
+<!-- 1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;ada860949a3d4cbcaa54bc29dd56edc1 -->
 <g id="edge4" class="edge">
-<title>4b7ba58afb7d4a7db21e214889426526&#45;&gt;aa8e1164bd60437e8debbe8d6da2f1fa</title>
+<title>1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;ada860949a3d4cbcaa54bc29dd56edc1</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M359.01,-780.02C409.07,-882.22 438.85,-904.44 571.2,-960.01"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="569.8,-963.22 580.37,-963.85 572.5,-956.76 569.8,-963.22"/>
 <text xml:space="preserve" text-anchor="middle" x="455.48" y="-906.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> on&#45;device </text>
 </g>
-<!-- 2c9f2994385a4f5f9bf76aad3f009985 -->
+<!-- 50ac4fb5270a4240b0e0e3e257f5aca1 -->
 <g id="node9" class="node">
-<title>2c9f2994385a4f5f9bf76aad3f009985</title>
+<title>50ac4fb5270a4240b0e0e3e257f5aca1</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/onprem/network/caddy.png" width="100.8px" height="32.4313px" preserveAspectRatio="xMinYMin meet" x="983.075" y="-374.716"/>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-296.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">HTTPS</text>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-279.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">reverse proxy</text>
 </g>
-<!-- 4b7ba58afb7d4a7db21e214889426526&#45;&gt;2c9f2994385a4f5f9bf76aad3f009985 -->
+<!-- 1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;50ac4fb5270a4240b0e0e3e257f5aca1 -->
 <g id="edge10" class="edge">
-<title>4b7ba58afb7d4a7db21e214889426526&#45;&gt;2c9f2994385a4f5f9bf76aad3f009985</title>
+<title>1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;50ac4fb5270a4240b0e0e3e257f5aca1</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M371.02,-641.67C531.24,-465.86 573.8,-450.51 971.03,-370.97"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="971.7,-374.4 980.82,-369.01 970.33,-367.54 971.7,-374.4"/>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-582.15" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> HTTPS: upload readings</text>
@@ -127,16 +127,16 @@
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-544.65" font-family="Sans-Serif" font-size="13.00" fill="#2d3436">/summary, /networks, /trail,</text>
 <text xml:space="preserve" text-anchor="middle" x="632.85" y="-525.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436">/geojson?bssid=, export </text>
 </g>
-<!-- 4b7ba58afb7d4a7db21e214889426526&#45;&gt;b230e60a2db64108ba17d0f6400afe9e -->
+<!-- 1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;978b549fb9d64dc9ac74972ffdc7b73b -->
 <g id="edge13" class="edge">
-<title>4b7ba58afb7d4a7db21e214889426526&#45;&gt;b230e60a2db64108ba17d0f6400afe9e</title>
+<title>1e4636f5724246b2b04c7241a6b8cd7d&#45;&gt;978b549fb9d64dc9ac74972ffdc7b73b</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M344.5,-615.06C382.3,-492.56 411.66,-463.11 572.28,-355.72"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="574.15,-358.68 580.53,-350.22 570.27,-352.86 574.15,-358.68"/>
 <text xml:space="preserve" text-anchor="middle" x="455.48" y="-457.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> opens 3D view </text>
 </g>
-<!-- b4177bb8173a4988b885b427ba9d6a15 -->
+<!-- 4feb00577f9d4329986929058aa0ffce -->
 <g id="node4" class="node">
-<title>b4177bb8173a4988b885b427ba9d6a15</title>
+<title>4feb00577f9d4329986929058aa0ffce</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/generic/os/android.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="30" y="-1006.9"/>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-900.65" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Positioning</text>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-884.15" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">step / heading</text>
@@ -144,72 +144,72 @@
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-851.15" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">+ checkpoints</text>
 <text xml:space="preserve" text-anchor="middle" x="80.4" y="-834.65" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">(spreadDrift)</text>
 </g>
-<!-- b4177bb8173a4988b885b427ba9d6a15&#45;&gt;4b7ba58afb7d4a7db21e214889426526 -->
+<!-- 4feb00577f9d4329986929058aa0ffce&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d -->
 <g id="edge2" class="edge">
-<title>b4177bb8173a4988b885b427ba9d6a15&#45;&gt;4b7ba58afb7d4a7db21e214889426526</title>
+<title>4feb00577f9d4329986929058aa0ffce&#45;&gt;1e4636f5724246b2b04c7241a6b8cd7d</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M130.57,-871.28C154.56,-839.47 187.46,-809.67 261.19,-747.46"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="263.14,-750.39 268.53,-741.27 258.63,-745.04 263.14,-750.39"/>
 <text xml:space="preserve" text-anchor="middle" x="200.55" y="-869.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> walk path </text>
 </g>
-<!-- 579f884130f74ce09727ac04936b4bf3 -->
+<!-- c58b94bdd0da4f53bd138f1840a32312 -->
 <g id="node7" class="node">
-<title>579f884130f74ce09727ac04936b4bf3</title>
+<title>c58b94bdd0da4f53bd138f1840a32312</title>
 <image xlink:href="/workspace/signalscape-arch/icons/mapbox.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="983.075" y="-1015.9"/>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-905.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">Mapbox raster tiles</text>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-888.95" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">satellite&#45;streets</text>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-872.45" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">(+ light / dark styles)</text>
 </g>
-<!-- 9253acb637464c38a2de0d6254d86b38&#45;&gt;579f884130f74ce09727ac04936b4bf3 -->
+<!-- 4a41cea3ac694d01925cf2a765e1dd5e&#45;&gt;c58b94bdd0da4f53bd138f1840a32312 -->
 <g id="edge11" class="edge">
-<title>9253acb637464c38a2de0d6254d86b38&#45;&gt;579f884130f74ce09727ac04936b4bf3</title>
+<title>4a41cea3ac694d01925cf2a765e1dd5e&#45;&gt;c58b94bdd0da4f53bd138f1840a32312</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M683.09,-789.49C824.26,-923.7 854.43,-943.09 971.45,-958.26"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="970.67,-961.69 981.03,-959.47 971.54,-954.75 970.67,-961.69"/>
 <text xml:space="preserve" text-anchor="middle" x="846.23" y="-897.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> raster tiles </text>
 </g>
-<!-- f5f92d59aea14ff38792bf9e949e3130 -->
+<!-- 8969f1f5c084469988d9fa14f809c593 -->
 <g id="node8" class="node">
-<title>f5f92d59aea14ff38792bf9e949e3130</title>
+<title>8969f1f5c084469988d9fa14f809c593</title>
 <image xlink:href="/workspace/signalscape-arch/icons/osm.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="983.075" y="-785.9"/>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-673.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">OpenStreetMap</text>
 <text xml:space="preserve" text-anchor="middle" x="1033.48" y="-656.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">fallback tiles</text>
 </g>
-<!-- 9253acb637464c38a2de0d6254d86b38&#45;&gt;f5f92d59aea14ff38792bf9e949e3130 -->
+<!-- 4a41cea3ac694d01925cf2a765e1dd5e&#45;&gt;8969f1f5c084469988d9fa14f809c593 -->
 <g id="edge12" class="edge">
-<title>9253acb637464c38a2de0d6254d86b38&#45;&gt;f5f92d59aea14ff38792bf9e949e3130</title>
+<title>4a41cea3ac694d01925cf2a765e1dd5e&#45;&gt;8969f1f5c084469988d9fa14f809c593</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M683.17,-758.74C828.94,-808.13 859.45,-810.35 972.13,-762.42"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="973.27,-765.74 981.08,-758.58 970.51,-759.31 973.27,-765.74"/>
 <text xml:space="preserve" text-anchor="middle" x="846.23" y="-745.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> fallback </text>
 </g>
-<!-- e8e86463984c4b0f9cc80d56f3fe1aac -->
+<!-- b16ce8f3a85847e1b4f21527f0b5719d -->
 <g id="node10" class="node">
-<title>e8e86463984c4b0f9cc80d56f3fe1aac</title>
+<title>b16ce8f3a85847e1b4f21527f0b5719d</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/programming/framework/fastapi.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="1215.35" y="-408.9"/>
 <text xml:space="preserve" text-anchor="middle" x="1265.75" y="-296.35" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">FastAPI (Python)</text>
 <text xml:space="preserve" text-anchor="middle" x="1265.75" y="-279.85" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">SQLAlchemy / Alembic</text>
 </g>
-<!-- 2c9f2994385a4f5f9bf76aad3f009985&#45;&gt;e8e86463984c4b0f9cc80d56f3fe1aac -->
+<!-- 50ac4fb5270a4240b0e0e3e257f5aca1&#45;&gt;b16ce8f3a85847e1b4f21527f0b5719d -->
 <g id="edge5" class="edge">
-<title>2c9f2994385a4f5f9bf76aad3f009985&#45;&gt;e8e86463984c4b0f9cc80d56f3fe1aac</title>
+<title>50ac4fb5270a4240b0e0e3e257f5aca1&#45;&gt;b16ce8f3a85847e1b4f21527f0b5719d</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M1083.73,-350.31C1147.68,-340.1 1176.03,-337.05 1203.4,-341.17"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="1202.75,-344.61 1213.22,-343.02 1204.04,-337.73 1202.75,-344.61"/>
 <text xml:space="preserve" text-anchor="middle" x="1158.35" y="-364.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> proxy </text>
 </g>
-<!-- baac7394a5af4e65b6b5504ec5c2f7a4 -->
+<!-- 2b2c20b46bb744c6b1dd732dfc744d34 -->
 <g id="node11" class="node">
-<title>baac7394a5af4e65b6b5504ec5c2f7a4</title>
+<title>2b2c20b46bb744c6b1dd732dfc744d34</title>
 <image xlink:href="/workspace/signalscape-arch/.venv/lib/python3.13/site-packages/resources/onprem/database/postgresql.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="1466.9" y="-184.9"/>
 <text xml:space="preserve" text-anchor="middle" x="1517.3" y="-70.25" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">PostgreSQL 16</text>
 </g>
-<!-- e8e86463984c4b0f9cc80d56f3fe1aac&#45;&gt;baac7394a5af4e65b6b5504ec5c2f7a4 -->
+<!-- b16ce8f3a85847e1b4f21527f0b5719d&#45;&gt;2b2c20b46bb744c6b1dd732dfc744d34 -->
 <g id="edge6" class="edge">
-<title>e8e86463984c4b0f9cc80d56f3fe1aac&#45;&gt;baac7394a5af4e65b6b5504ec5c2f7a4</title>
+<title>b16ce8f3a85847e1b4f21527f0b5719d&#45;&gt;2b2c20b46bb744c6b1dd732dfc744d34</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M1315.98,-318.74C1396.25,-255.09 1430.81,-226.89 1458.51,-199.54"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="1460.67,-202.33 1465.22,-192.76 1455.7,-197.4 1460.67,-202.33"/>
 <text xml:space="preserve" text-anchor="middle" x="1391.53" y="-220.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> read / write </text>
 </g>
-<!-- 547dab694d6445569bb067b6626eba11 -->
+<!-- 87e0e142a3b246179143928565b83b4e -->
 <g id="node12" class="node">
-<title>547dab694d6445569bb067b6626eba11</title>
+<title>87e0e142a3b246179143928565b83b4e</title>
 <image xlink:href="/workspace/signalscape-arch/icons/threejs.png" width="100.8px" height="100.8px" preserveAspectRatio="xMinYMin meet" x="1466.9" y="-428.9"/>
 <text xml:space="preserve" text-anchor="middle" x="1517.3" y="-322.65" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">3D viewer</text>
 <text xml:space="preserve" text-anchor="middle" x="1517.3" y="-306.15" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">/api/viewer/</text>
@@ -217,16 +217,16 @@
 <text xml:space="preserve" text-anchor="middle" x="1517.3" y="-273.15" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">vendored three.js</text>
 <text xml:space="preserve" text-anchor="middle" x="1517.3" y="-256.65" font-family="DejaVu Sans" font-size="13.00" fill="#1a1a1a">(strict CSP)</text>
 </g>
-<!-- e8e86463984c4b0f9cc80d56f3fe1aac&#45;&gt;547dab694d6445569bb067b6626eba11 -->
+<!-- b16ce8f3a85847e1b4f21527f0b5719d&#45;&gt;87e0e142a3b246179143928565b83b4e -->
 <g id="edge7" class="edge">
-<title>e8e86463984c4b0f9cc80d56f3fe1aac&#45;&gt;547dab694d6445569bb067b6626eba11</title>
+<title>b16ce8f3a85847e1b4f21527f0b5719d&#45;&gt;87e0e142a3b246179143928565b83b4e</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M1315.85,-356.35C1392.97,-353.18 1425,-353.01 1455.08,-359.26"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="1454.17,-362.64 1464.7,-361.54 1455.78,-355.83 1454.17,-362.64"/>
 <text xml:space="preserve" text-anchor="middle" x="1391.53" y="-381.9" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> serves </text>
 </g>
-<!-- b230e60a2db64108ba17d0f6400afe9e&#45;&gt;2c9f2994385a4f5f9bf76aad3f009985 -->
+<!-- 978b549fb9d64dc9ac74972ffdc7b73b&#45;&gt;50ac4fb5270a4240b0e0e3e257f5aca1 -->
 <g id="edge14" class="edge">
-<title>b230e60a2db64108ba17d0f6400afe9e&#45;&gt;2c9f2994385a4f5f9bf76aad3f009985</title>
+<title>978b549fb9d64dc9ac74972ffdc7b73b&#45;&gt;50ac4fb5270a4240b0e0e3e257f5aca1</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.6" d="M683.14,-301.71C823.94,-263.72 853.87,-264.7 972.25,-326.05"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.6" points="970.59,-329.13 981.07,-330.65 973.83,-322.92 970.59,-329.13"/>
 <text xml:space="preserve" text-anchor="middle" x="846.23" y="-393.4" font-family="Sans-Serif" font-size="13.00" fill="#2d3436"> HTTPS /api/viewer/</text>
