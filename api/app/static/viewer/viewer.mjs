@@ -13,6 +13,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import {
   CONFIDENCE_NOTE,
   apConfidenceText,
+  isPositionDetermined,
+  POSITION_NOT_DETERMINED,
   LEGEND_STORAGE_KEY,
   LEVEL_COLORS,
   LEVEL_NAMES,
@@ -626,6 +628,7 @@ function addRouters(floor, unit) {
 function addAccessPoints(floor, unit) {
   for (const ap of state.accessPoints) {
     if (ap.floor_id !== floor.info.floor_id) continue;
+    if (!isPositionDetermined(ap)) continue;
     const local = toLocal(ap.lat, ap.lng, state.survey.origin_lat, state.survey.origin_lng);
     const low = isLowConfidence(ap);
     const marker = new THREE.Group();
@@ -845,10 +848,14 @@ function pick(event) {
     );
   } else if (ap) {
     const name = ap.ssid && ap.ssid.length > 0 ? ap.ssid : '(hidden network)';
-    showInfo(
-      `Estimated access point: ${name} · ${ap.bssid} · ${apConfidenceText(ap)} · ` +
-        `strongest reading ${formatDbm(ap.max_rssi_dbm)}`,
-    );
+    if (!isPositionDetermined(ap)) {
+      showInfo(`Estimated access point: ${name} · ${ap.bssid} · ${POSITION_NOT_DETERMINED}`);
+    } else {
+      showInfo(
+        `Estimated access point: ${name} · ${ap.bssid} · ${apConfidenceText(ap)} · ` +
+          `strongest reading ${formatDbm(ap.max_rssi_dbm)}`,
+      );
+    }
   } else {
     describeCell(hit);
   }
@@ -1124,7 +1131,15 @@ async function changeNetwork() {
       if (floor.summaryEl) floor.summaryEl.textContent = floorSummaryText(floor);
     });
     hideStatus();
-    els.info.hidden = true;
+    const picked = state.bssid
+      ? state.accessPoints.find((ap) => ap.bssid === state.bssid && !isPositionDetermined(ap))
+      : null;
+    if (picked) {
+      const name = picked.ssid && picked.ssid.length > 0 ? picked.ssid : '(hidden network)';
+      showInfo(`Estimated access point: ${name} · ${picked.bssid} · ${POSITION_NOT_DETERMINED}`);
+    } else {
+      els.info.hidden = true;
+    }
     requestRender();
   } catch (error) {
     showStatus(errorText(error), true);

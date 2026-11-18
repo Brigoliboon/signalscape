@@ -216,7 +216,11 @@ curl -sS $BASE/surveys/$SID/networks -H "$AUTH"
 {"items":[{"ssid":"Lab-WiFi","bssid":"aa:bb:cc:dd:ee:01","reading_count":12,"max_rssi_dbm":-45},{"ssid":"Hallway-AP","bssid":"aa:bb:cc:dd:ee:02","reading_count":12,"max_rssi_dbm":-48}],"total":2,"page":1,"page_size":20}
 ```
 
-Estimated access points (paged): `GET /api/surveys/{id}/access-points`.
+Estimated access points (paged): `GET /api/surveys/{id}/access-points`. Each item includes `position_determined`. That is true only when at least one reading is in the good/strong band (at or above the survey's `good_dbm`, default -67 dBm). Until then `lat` and `lng` are `null`; the estimate is still stored, and the maps show "Position not determined" instead of a pin. The same flag and null geometry are used on GeoJSON `access_point` features. No migration: the flag is computed from `max_rssi_dbm` and the stored good threshold.
+
+```json
+{"items":[{"bssid":"aa:bb:cc:dd:ee:01","ssid":"Lab-WiFi","lat":14.5995,"lng":120.9842,"method":"path_loss_lsq","reading_count":12,"max_rssi_dbm":-45,"confidence":0.87,"low_confidence":false,"spread_m":6.4,"position_determined":true},{"bssid":"aa:bb:cc:dd:ee:02","ssid":"Hallway-AP","lat":null,"lng":null,"method":"path_loss_lsq","reading_count":4,"max_rssi_dbm":-78,"confidence":0.1,"low_confidence":true,"spread_m":2.1,"position_determined":false}],"total":2,"page":1,"page_size":20}
+```
 
 Coverage grid of one floor. `values` is row-major, south row first, west column first, in dBm, `null` where there is no data. `origin_lat` and `origin_lng` are the south-west corner. Add `&bssid=aa:bb:cc:dd:ee:01` for one network instead of the strongest signal:
 

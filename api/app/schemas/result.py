@@ -15,21 +15,28 @@ class AccessPointOut(BaseModel):
     few readings to fit, or results from v1.0). ``confidence`` is 0 to 1;
     ``low_confidence`` is true below 5 readings or 3 m of spread (FR-24).
     ``spread_m`` is 2 x the RMS distance of the readings from their mean. All
-    three are null on results processed before v1.1."""
+    three are null on results processed before v1.1.
+
+    ``position_determined`` is true only when at least one reading is in the
+    good/strong band (at or above the survey's FR-15 ``good_dbm``, default
+    -67 dBm). Until then ``lat`` and ``lng`` are null: the estimated
+    coordinates are not returned, so clients do not plot a guessed pin.
+    """
 
     floor_id: uuid.UUID
     floor_level: int
     bssid: str
     ssid: str
     frequency_mhz: int
-    lat: float
-    lng: float
+    lat: float | None = None
+    lng: float | None = None
     method: str
     reading_count: int
     max_rssi_dbm: int
     confidence: float | None = None
     low_confidence: bool | None = None
     spread_m: float | None = None
+    position_determined: bool = False
 
 
 class AccessPointRead(AccessPointOut):

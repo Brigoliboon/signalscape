@@ -21,7 +21,7 @@ class MapCell {
 /// An estimated access point.
 class MapAccessPoint {
   const MapAccessPoint({
-    required this.at,
+    this.at,
     required this.ssid,
     required this.bssid,
     required this.rssiDbm,
@@ -29,9 +29,11 @@ class MapAccessPoint {
     this.confidence,
     this.lowConfidence = true,
     this.spreadM,
+    this.positionDetermined = true,
   });
 
-  final LatLng at;
+  /// The estimated position, or null when it is not determined.
+  final LatLng? at;
   final String ssid;
   final String bssid;
 
@@ -50,6 +52,12 @@ class MapAccessPoint {
 
   /// How widely the readings were spread, in meters.
   final double? spreadM;
+
+  /// True only when at least one reading is in the good/strong band (FR-15,
+  /// default -67 dBm). Until then the map does not draw a pin.
+  final bool positionDetermined;
+
+  static const positionNotDeterminedText = 'Position not determined';
 
   String get name => ssid.isEmpty ? '(hidden network)' : ssid;
 
@@ -253,16 +261,17 @@ class SurveyMapData {
         if (f is! Map) continue;
         final props = f['properties'];
         final geometry = f['geometry'];
-        if (props is! Map || geometry is! Map || props['floor_level'] is! num) {
+        if (props is! Map || props['floor_level'] is! num) {
           continue;
         }
         final level = (props['floor_level'] as num).toInt();
         switch (props['kind']) {
           case 'coverage':
+            if (geometry is! Map) continue;
             final cell = _cell(geometry, props, found ?? fallback);
             if (cell != null) cells.putIfAbsent(level, () => []).add(cell);
           case 'access_point':
-            final ap = _accessPoint(geometry, props);
+            final ap = _accessPoint(geometry is Map ? geometry : null, props);
             if (ap != null) aps.putIfAbsent(level, () => []).add(ap);
         }
       }
@@ -350,7 +359,9 @@ class SurveyMapData {
   for (final c in floor.cells) {
     c.ring.forEach(add);
   }
-  floor.accessPoints.map((a) => a.at).forEach(add);
+  for (final a in floor.accessPoints) {
+    if (a.at != null) add(a.at!);
+  }
   floor.trail.forEach(add);
   if (floor.start != null) add(floor.start!);
   if (floor.end != null) add(floor.end!);
@@ -393,12 +404,20 @@ MapCell? _cell(Map geometry, Map props, Thresholds t) {
   );
 }
 
-MapAccessPoint? _accessPoint(Map geometry, Map props) {
-  if (geometry['type'] != 'Point') return null;
-  final at = _position(geometry['coordinates']);
+MapAccessPoint? _accessPoint(Map? geometry, Map props) {
   final bssid = props['bssid'];
   final rssi = props['rssi_dbm'];
-  if (at == null || bssid is! String || rssi is! num) return null;
+  if (bssid is! String || rssi is! num) return null;
+  LatLng? at;
+  if (geometry != null && geometry['type'] == 'Point') {
+    at = _position(geometry['coordinates']);
+  }
+  final determined = props['position_determined'] != false;
+  if (!determined) {
+    at = null;
+  } else if (at == null) {
+    return null; // legacy/determined features need a valid point
+  }
   return MapAccessPoint(
     at: at,
     ssid: props['ssid'] is String ? props['ssid'] as String : '',
@@ -408,6 +427,7 @@ MapAccessPoint? _accessPoint(Map geometry, Map props) {
     confidence: (props['confidence'] as num?)?.toDouble(),
     lowConfidence: props['low_confidence'] != false,
     spreadM: (props['spread_m'] as num?)?.toDouble(),
+    positionDetermined: determined && at != null,
   );
 }
 

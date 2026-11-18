@@ -424,6 +424,16 @@ def test_level_boundaries() -> None:
     assert proc.level_for(-60, -55, -75) == "fair"  # custom thresholds
 
 
+def test_position_is_determined_only_with_a_strong_reading() -> None:
+    # FR-15 default good threshold is -67 dBm (the strong/red end of the ramp).
+    assert proc.position_determined(-67, -67)
+    assert proc.position_determined(-50, -67)
+    assert not proc.position_determined(-68, -67)
+    assert not proc.position_determined(-80, -67)
+    assert not proc.position_determined(-60, -55)  # custom threshold
+    assert proc.position_determined(-50, -55)
+
+
 def test_level_shares_ignore_empty_cells() -> None:
     values = np.array([-50, -67, -70, -80, -85, np.nan, np.nan])
     good, fair, dead = proc.level_shares(values, -67, -80)

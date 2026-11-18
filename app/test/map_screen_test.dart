@@ -318,6 +318,64 @@ void main() {
     );
   });
 
+  testWidgets(
+    'undetermined access points are not drawn and say so when picked',
+    (tester) async {
+      final routes = goodRoutes();
+      routes['GET /api/surveys/s1/geojson'] = () => jsonResponse(
+        collection([
+          cell(121.0, 14.6, -50, 0, level: 'good'),
+          ap(121.0001, 14.6001, 0),
+          ap(
+            null,
+            null,
+            0,
+            bssid: 'aa:bb:cc:dd:ee:02',
+            ssid: '',
+            rssiDbm: -70,
+            readings: 4,
+            positionDetermined: false,
+          ),
+        ]),
+      );
+      routes['GET /api/surveys/s1/geojson?bssid=aa:bb:cc:dd:ee:02'] = () =>
+          jsonResponse(
+            collection([
+              cell(121.0, 14.6, -70, 0, level: 'fair'),
+              ap(
+                null,
+                null,
+                0,
+                bssid: 'aa:bb:cc:dd:ee:02',
+                ssid: '',
+                rssiDbm: -70,
+                readings: 4,
+                positionDetermined: false,
+              ),
+            ]),
+          );
+      await pump(tester, routes);
+      expect(
+        find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:02')), findsNothing);
+      expect(find.text('Position not determined'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('network-picker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('aa:bb:cc:dd:ee:02').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:02')), findsNothing);
+      expect(find.text('Position not determined'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('ap-position-undetermined')));
+      await tester.pumpAndSettle();
+      expect(find.text('BSSID aa:bb:cc:dd:ee:02'), findsOneWidget);
+      expect(find.text('Position not determined'), findsWidgets);
+      expect(find.textContaining('-70 dBm'), findsOneWidget);
+    },
+  );
+
   testWidgets('the dead and weak zone layer can be switched on (FR-26)', (
     tester,
   ) async {

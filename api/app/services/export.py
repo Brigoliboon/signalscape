@@ -15,7 +15,7 @@ from app.models.building import Floor
 from app.models.result import AccessPointEstimate, CoverageGrid
 from app.models.survey import ScanReading, Survey
 from app.services import processing as proc
-from app.services.results import floors_of
+from app.services.results import floors_of, stored_good_dbm
 
 COORD_DECIMALS = 7
 CSV_COLUMNS = [
@@ -123,25 +123,30 @@ def access_point_features(
     if bssid is not None:
         stmt = stmt.where(AccessPointEstimate.bssid == bssid)
     aps = sorted(db.scalars(stmt), key=lambda a: (floors[a.floor_id].level, a.bssid))
-    return [
-        {
-            "type": "Feature",
-            "geometry": _point(ap.lng, ap.lat),
-            "properties": {
-                "kind": "access_point",
-                "ssid": ap.ssid,
-                "bssid": str(ap.bssid),
-                "floor_level": floors[ap.floor_id].level,
-                "rssi_dbm": ap.max_rssi_dbm,
-                "method": ap.method,
-                "reading_count": ap.reading_count,
-                "confidence": ap.confidence,
-                "low_confidence": ap.low_confidence,
-                "spread_m": ap.spread_m,
-            },
-        }
-        for ap in aps
-    ]
+    good_dbm = stored_good_dbm(db, survey)
+    features = []
+    for ap in aps:
+        determined = proc.position_determined(ap.max_rssi_dbm, good_dbm)
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": _point(ap.lng, ap.lat) if determined else None,
+                "properties": {
+                    "kind": "access_point",
+                    "ssid": ap.ssid,
+                    "bssid": str(ap.bssid),
+                    "floor_level": floors[ap.floor_id].level,
+                    "rssi_dbm": ap.max_rssi_dbm,
+                    "method": ap.method,
+                    "reading_count": ap.reading_count,
+                    "confidence": ap.confidence,
+                    "low_confidence": ap.low_confidence,
+                    "spread_m": ap.spread_m,
+                    "position_determined": determined,
+                },
+            }
+        )
+    return features
 
 
 def reading_features(

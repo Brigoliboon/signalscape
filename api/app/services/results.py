@@ -98,6 +98,31 @@ def thresholds_for(db: Session, survey: Survey) -> Thresholds:
     )
 
 
+def stored_good_dbm(db: Session, survey: Survey) -> int:
+    """The good threshold used when this survey was processed (FR-15).
+
+    Taken from a stored coverage grid so it matches the heatmap of these
+    results. Falls back to the surveyor's current setting.
+    """
+    value = db.scalar(
+        select(CoverageGrid.good_threshold_dbm).where(
+            CoverageGrid.survey_id == survey.id
+        )
+    )
+    if value is not None:
+        return int(value)
+    return thresholds_for(db, survey).good_dbm
+
+
+def access_point_location(
+    lat: float, lng: float, max_rssi_dbm: int, good_dbm: int
+) -> tuple[bool, float | None, float | None]:
+    """Coordinates for the API: null until a strong (good-band) reading exists."""
+    if proc.position_determined(max_rssi_dbm, good_dbm):
+        return True, lat, lng
+    return False, None, None
+
+
 def load_readings(
     db: Session, survey: Survey, floor_id: uuid.UUID | None = None
 ) -> list[proc.Reading]:
@@ -356,8 +381,12 @@ def computation_result(
                     )
                 )
     access_points = []
+    good_dbm = computation.thresholds.good_dbm
     for ap in sorted(computation.access_points, key=lambda a: a.bssid):
         lat, lng = proc.to_geo(ap.x, ap.y, survey.origin_lat, survey.origin_lng)
+        determined, lat, lng = access_point_location(
+            lat, lng, ap.max_rssi_dbm, good_dbm
+        )
         access_points.append(
             AccessPointOut(
                 floor_id=ap.floor_id,
@@ -373,6 +402,7 @@ def computation_result(
                 confidence=ap.confidence,
                 low_confidence=ap.low_confidence,
                 spread_m=ap.spread_m,
+                position_determined=determined,
             )
         )
     return ProcessResult(

@@ -31,10 +31,12 @@ from app.schemas.result import (
 from app.schemas.survey import Bssid
 from app.services.export import geojson, readings_csv
 from app.services.results import (
+    access_point_location,
     coverage_read,
     floors_of,
     require_processed,
     run_processing,
+    stored_good_dbm,
     stored_summary,
 )
 from app.services.router_coverage import router_coverage
@@ -150,27 +152,34 @@ def list_access_points(
         stmt = stmt.where(AccessPointEstimate.bssid == bssid)
     result = paginate(db, stmt, page, order_by)
     floors = floors_of(db, survey)
-    result["items"] = [
-        AccessPointRead(
-            id=ap.id,
-            survey_id=ap.survey_id,
-            floor_id=ap.floor_id,
-            floor_level=floors[ap.floor_id].level,
-            bssid=str(ap.bssid),
-            ssid=ap.ssid,
-            frequency_mhz=ap.frequency_mhz,
-            lat=ap.lat,
-            lng=ap.lng,
-            method=ap.method,
-            reading_count=ap.reading_count,
-            max_rssi_dbm=ap.max_rssi_dbm,
-            confidence=ap.confidence,
-            low_confidence=ap.low_confidence,
-            spread_m=ap.spread_m,
-            computed_at=ap.computed_at,
+    good_dbm = stored_good_dbm(db, survey)
+    items = []
+    for ap in result["items"]:
+        determined, lat, lng = access_point_location(
+            ap.lat, ap.lng, ap.max_rssi_dbm, good_dbm
         )
-        for ap in result["items"]
-    ]
+        items.append(
+            AccessPointRead(
+                id=ap.id,
+                survey_id=ap.survey_id,
+                floor_id=ap.floor_id,
+                floor_level=floors[ap.floor_id].level,
+                bssid=str(ap.bssid),
+                ssid=ap.ssid,
+                frequency_mhz=ap.frequency_mhz,
+                lat=lat,
+                lng=lng,
+                method=ap.method,
+                reading_count=ap.reading_count,
+                max_rssi_dbm=ap.max_rssi_dbm,
+                confidence=ap.confidence,
+                low_confidence=ap.low_confidence,
+                spread_m=ap.spread_m,
+                position_determined=determined,
+                computed_at=ap.computed_at,
+            )
+        )
+    result["items"] = items
     return result
 
 

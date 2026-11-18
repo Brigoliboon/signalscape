@@ -496,6 +496,7 @@ def test_access_points_list(scene: Scene) -> None:
         "confidence",
         "low_confidence",
         "spread_m",
+        "position_determined",
         "computed_at",
     }
     # strongest first by default: A's best is -50, B's is -65 (floor 0)
@@ -511,6 +512,10 @@ def test_access_points_list(scene: Scene) -> None:
     assert first["low_confidence"] is True
     assert 0 <= first["confidence"] < 1
     assert first["spread_m"] == pytest.approx(4.47, abs=0.01)
+    # Both A (-50) and B (-65) have a reading at or above the -67 dBm good band.
+    assert first["position_determined"] is True
+    assert first["lat"] is not None and first["lng"] is not None
+    assert listing["items"][1]["position_determined"] is True
 
     def get(query: str) -> dict:
         response = scene.get(f"access-points?{query}")
@@ -528,6 +533,42 @@ def test_access_points_list(scene: Scene) -> None:
     assert get("page=2&page_size=1")["items"][0]["bssid"] == B
     assert len(get("sort=-confidence")["items"]) == 2
     assert scene.get("access-points?sort=lat").status_code == 422
+
+
+def test_access_point_position_is_undetermined_without_a_strong_reading(
+    scene: Scene,
+) -> None:
+    """No pin until at least one reading is in the good/strong band (FR-15)."""
+    weak = "aa:bb:cc:dd:ee:03"
+    add_readings(
+        scene.db,
+        scene.survey,
+        scene.floor,
+        [
+            (0.5, 0.5, -80, weak),
+            (2.5, 0.5, -85, weak),
+            (4.5, 0.5, -78, weak),
+        ],
+        start=400,
+    )
+    scene.processed()
+    items = {i["bssid"]: i for i in scene.get("access-points").json()["items"]}
+    assert items[A]["position_determined"] is True
+    assert items[A]["lat"] is not None
+    found = items[weak]
+    assert found["max_rssi_dbm"] == -78
+    assert found["position_determined"] is False
+    assert found["lat"] is None and found["lng"] is None
+
+    aps = {
+        f["properties"]["bssid"]: f
+        for f in features(scene.get("geojson"))
+        if f["properties"]["kind"] == "access_point"
+    }
+    assert aps[A]["geometry"]["type"] == "Point"
+    assert aps[A]["properties"]["position_determined"] is True
+    assert aps[weak]["geometry"] is None
+    assert aps[weak]["properties"]["position_determined"] is False
 
 
 # --- networks ---------------------------------------------------------------
@@ -629,7 +670,11 @@ def test_geojson_default_has_cells_and_access_points_per_floor(scene: Scene) -> 
     assert len(cells) == 7 + 3
     assert {f["properties"]["floor_level"] for f in cells} == {0, 1}
     assert len(aps) == 2
-    assert {"confidence", "low_confidence", "spread_m"} <= set(aps[0]["properties"])
+    assert {"confidence", "low_confidence", "spread_m", "position_determined"} <= set(
+        aps[0]["properties"]
+    )
+    assert aps[0]["properties"]["position_determined"] is True
+    assert aps[0]["geometry"]["type"] == "Point"
     assert aps[0]["properties"]["method"] == "path_loss_lsq"
     assert not [f for f in found if f["properties"]["kind"] == "reading"]
     # features come floor by floor
