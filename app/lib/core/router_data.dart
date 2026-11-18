@@ -9,10 +9,11 @@ import 'map_data.dart';
 import 'png.dart';
 
 // Router coverage mode (FR-27 to FR-29): read from GET /surveys/{id}/routers.
-// A separate mode from the strongest-signal heatmap. Each router has its own
-// identity colour; those colours are blues and purples, never the green, amber
-// or red of signal levels, which stay for the weak and dead gaps. The 3D page
-// uses the same palette (ROUTER_PALETTE in api/app/static/viewer/levels.mjs).
+// The mode opens on extended networks (a named SSID served by two or more
+// routers). Reach is the heatmap of that network; per-router footprints are
+// not the default view. Router identity colours are blues and purples, never
+// the green, amber or red of signal levels, which stay for the weak and dead
+// gaps. The 3D page uses the same palette (ROUTER_PALETTE in levels.mjs).
 
 /// Router identity colours as 0xRRGGBB, by router number (1 = first).
 const List<int> routerPalette = [
@@ -169,6 +170,101 @@ class RouterFloor {
   }
 }
 
+/// "likely_main" or "extender". The label is an estimate, never a fact.
+enum RouterRole { likelyMain, extender }
+
+/// One router of an extended network, on one floor.
+class ExtendedRouter {
+  const ExtendedRouter({
+    required this.id,
+    required this.number,
+    required this.label,
+    required this.role,
+    required this.maxRssiDbm,
+    this.at,
+    this.lowConfidence = true,
+    this.positionDetermined = false,
+  });
+
+  final String id;
+  final int number;
+  final String label;
+  final RouterRole role;
+  final int maxRssiDbm;
+  final LatLng? at;
+  final bool lowConfidence;
+  final bool positionDetermined;
+
+  int get rgb => routerRgb(number);
+
+  /// Shown in the list and the details sheet.
+  String get roleText =>
+      role == RouterRole.likelyMain ? 'Likely main' : 'Extender';
+
+  String get positionText =>
+      positionDetermined ? roleText : MapAccessPoint.positionNotDeterminedText;
+}
+
+/// One floor of an extended network.
+class ExtendedNetworkFloor {
+  const ExtendedNetworkFloor({
+    required this.level,
+    required this.label,
+    required this.likelyMain,
+    required this.routers,
+    required this.links,
+    required this.weakCells,
+    required this.deadCells,
+    required this.gapAreaM2,
+    this.gaps,
+    this.coverage,
+  });
+
+  final int level;
+  final String label;
+  final String? likelyMain;
+  final List<ExtendedRouter> routers;
+  final List<RouterLink> links;
+  final int weakCells;
+  final int deadCells;
+  final double gapAreaM2;
+  final FloorHeat? gaps;
+  final FloorHeat? coverage;
+
+  ExtendedRouter? routerById(String id) {
+    for (final r in routers) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+}
+
+/// A named SSID served by two or more routers.
+class ExtendedNetwork {
+  const ExtendedNetwork({
+    required this.ssid,
+    required this.routerIds,
+    required this.routerCount,
+    this.likelyMain,
+    required this.floors,
+  });
+
+  final String ssid;
+  final List<String> routerIds;
+  final int routerCount;
+  final String? likelyMain;
+  final List<ExtendedNetworkFloor> floors;
+
+  String get name => ssid.isEmpty ? '(hidden network)' : ssid;
+
+  ExtendedNetworkFloor? floorAt(int level) {
+    for (final f in floors) {
+      if (f.level == level) return f;
+    }
+    return null;
+  }
+}
+
 class RouterCoverage {
   const RouterCoverage({
     required this.thresholds,
@@ -176,13 +272,24 @@ class RouterCoverage {
     required this.bssidCount,
     required this.floors,
     this.grouping = '',
+    this.mainHeuristic = '',
+    this.extendedNetworks = const [],
   });
 
   final Thresholds thresholds;
   final int routerCount;
   final int bssidCount;
   final String grouping;
+  final String mainHeuristic;
   final List<RouterFloor> floors;
+  final List<ExtendedNetwork> extendedNetworks;
+
+  ExtendedNetwork? networkNamed(String ssid) {
+    for (final n in extendedNetworks) {
+      if (n.ssid == ssid) return n;
+    }
+    return null;
+  }
 
   bool get isEmpty => floors.every((f) => f.routers.isEmpty);
 
@@ -227,12 +334,21 @@ class RouterCoverage {
       );
     }
     floors.sort((a, b) => a.level.compareTo(b.level));
+    final extended = <ExtendedNetwork>[];
+    for (final n in _list(json['extended_networks'])) {
+      final network = _extendedNetwork(n);
+      if (network != null) extended.add(network);
+    }
     return RouterCoverage(
       thresholds: thresholds,
       routerCount: _int(json['router_count']),
       bssidCount: _int(json['bssid_count']),
       grouping: json['grouping'] is String ? json['grouping'] as String : '',
+      mainHeuristic: json['main_heuristic'] is String
+          ? json['main_heuristic'] as String
+          : '',
       floors: floors,
+      extendedNetworks: extended,
     );
   }
 }
@@ -318,6 +434,101 @@ RouterChain? _chain(Object? c) {
     deadCells: _int(c['dead_cells']),
     gapAreaM2: _double(c['gap_area_m2']),
     gaps: gridHeat(c['gaps']),
+  );
+}
+
+ExtendedNetwork? _extendedNetwork(Object? raw) {
+  if (raw is! Map || raw['ssid'] is! String) return null;
+  final floors = <ExtendedNetworkFloor>[];
+  for (final f in _list(raw['floors'])) {
+    if (f is! Map || f['floor_level'] is! num) continue;
+    final routers = <ExtendedRouter>[];
+    for (final r in _list(f['routers'])) {
+      final router = _extendedRouter(r);
+      if (router != null) routers.add(router);
+    }
+    final links = <RouterLink>[];
+    for (final l in _list(f['links'])) {
+      if (l is! Map ||
+          l['from_router'] is! String ||
+          l['to_router'] is! String) {
+        continue;
+      }
+      links.add(
+        RouterLink(
+          from: l['from_router'] as String,
+          to: l['to_router'] as String,
+          lengthM: _double(l['length_m']),
+          minRssiDbm: l['min_rssi_dbm'] is num
+              ? (l['min_rssi_dbm'] as num).toDouble()
+              : null,
+          weakM: _double(l['weak_m']),
+          deadM: _double(l['dead_m']),
+          noDataM: _double(l['no_data_m']),
+          status: l['status'] is String ? l['status'] as String : 'no_data',
+        ),
+      );
+    }
+    floors.add(
+      ExtendedNetworkFloor(
+        level: (f['floor_level'] as num).toInt(),
+        label: f['floor_label'] is String
+            ? f['floor_label'] as String
+            : 'Level ${f['floor_level']}',
+        likelyMain: f['likely_main'] is String
+            ? f['likely_main'] as String
+            : null,
+        routers: routers,
+        links: links,
+        weakCells: _int(f['weak_cells']),
+        deadCells: _int(f['dead_cells']),
+        gapAreaM2: _double(f['gap_area_m2']),
+        gaps: gridHeat(f['gaps']),
+        coverage: gridHeat(f['coverage']),
+      ),
+    );
+  }
+  floors.sort((a, b) => a.level.compareTo(b.level));
+  return ExtendedNetwork(
+    ssid: raw['ssid'] as String,
+    routerIds: [
+      for (final s in _list(raw['router_ids']))
+        if (s is String) s,
+    ],
+    routerCount: _int(raw['router_count']),
+    likelyMain: raw['likely_main'] is String
+        ? raw['likely_main'] as String
+        : null,
+    floors: floors,
+  );
+}
+
+ExtendedRouter? _extendedRouter(Object? r) {
+  if (r is! Map || r['router_id'] is! String || r['number'] is! num) {
+    return null;
+  }
+  final lat = r['lat'], lng = r['lng'];
+  LatLng? at;
+  final determined = r['position_determined'] == true;
+  if (determined &&
+      lat is num &&
+      lng is num &&
+      lat.abs() <= 90 &&
+      lng.abs() <= 180) {
+    at = LatLng(lat.toDouble(), lng.toDouble());
+  }
+  final number = (r['number'] as num).toInt();
+  return ExtendedRouter(
+    id: r['router_id'] as String,
+    number: number,
+    label: r['label'] is String ? r['label'] as String : 'Router $number',
+    role: r['role'] == 'likely_main'
+        ? RouterRole.likelyMain
+        : RouterRole.extender,
+    maxRssiDbm: _int(r['max_rssi_dbm']),
+    at: at,
+    lowConfidence: r['low_confidence'] != false,
+    positionDetermined: determined && at != null,
   );
 }
 

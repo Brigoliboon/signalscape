@@ -246,11 +246,65 @@ class RouterFloorOut(BaseModel):
     chains: list[RouterChainOut]
 
 
+class ExtendedRouterOut(BaseModel):
+    """One router of an extended network, on one floor.
+
+    ``role`` is ``likely_main`` or ``extender`` (an estimate; see
+    ``main_heuristic``). ``lat`` and ``lng`` are null when the position is
+    not determined; the router still appears in the list."""
+
+    router_id: str
+    number: int
+    label: str
+    role: Literal["likely_main", "extender"]
+    max_rssi_dbm: int
+    lat: float | None = None
+    lng: float | None = None
+    confidence: float | None = None
+    low_confidence: bool | None = None
+    position_determined: bool = False
+
+
+class ExtendedNetworkFloorOut(BaseModel):
+    """One floor of an extended network: its routers, the links between
+    those that are placed, the gaps along those links, and ``coverage``, the
+    merged heatmap of this network name on this floor."""
+
+    floor_id: uuid.UUID
+    floor_level: int
+    floor_label: str
+    likely_main: str | None
+    routers: list[ExtendedRouterOut]
+    links: list[RouterLinkOut]
+    weak_cells: int
+    dead_cells: int
+    gap_area_m2: float
+    gaps: CellGridOut | None
+    coverage: CellGridOut | None
+
+
+class ExtendedNetworkOut(BaseModel):
+    """A named network served by two or more routers (an extended network).
+
+    ``router_ids`` are in survey number order and count every floor.
+    ``likely_main`` is that estimate for the whole network."""
+
+    ssid: str
+    router_ids: list[str]
+    router_count: int
+    likely_main: str | None
+    floors: list[ExtendedNetworkFloorOut]
+
+
 class RouterCoverageRead(BaseModel):
     """Router coverage mode of a processed survey (FR-27 to FR-29).
 
     ``router_count`` counts routers in the whole survey and ``bssid_count``
-    the BSSIDs they were grouped from; ``grouping`` says how."""
+    the BSSIDs they were grouped from; ``grouping`` says how.
+    ``extended_networks`` lists named SSIDs served by two or more routers,
+    which is what router mode opens on. ``floors`` (every router and the
+    older combined chains) is kept so existing clients keep working.
+    ``main_heuristic`` explains the "likely main" guess."""
 
     survey_id: uuid.UUID
     thresholds: Thresholds
@@ -258,4 +312,6 @@ class RouterCoverageRead(BaseModel):
     bssid_count: int
     grouping: str
     gap_corridor_m: float
+    main_heuristic: str = ""
     floors: list[RouterFloorOut]
+    extended_networks: list[ExtendedNetworkOut] = []

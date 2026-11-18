@@ -7,7 +7,8 @@ import 'package:signalscape_mobile/screens/router_coverage_screen.dart';
 import 'package:signalscape_mobile/theme.dart';
 
 import 'map_screen_test.dart' show NoTiles;
-import 'router_data_test.dart' show coverageJson;
+import 'router_data_test.dart'
+    show coverageJson, extendedRouterJson, staffNetwork;
 import 'support.dart';
 
 Future<List<String>> pumpRouters(
@@ -40,26 +41,26 @@ Future<List<String>> pumpRouters(
 }
 
 void main() {
-  testWidgets('lists routers with their networks and draws the selected '
-      'footprints (FR-27, FR-28)', (tester) async {
+  testWidgets('opens on an extended network and draws its heatmap, not '
+      'per-router footprints', (tester) async {
     final calls = await pumpRouters(tester, () => jsonResponse(coverageJson()));
     expect(calls, ['GET /api/surveys/s1/routers']);
     expect(find.text('Router coverage'), findsOneWidget);
+    expect(find.byKey(const ValueKey('network-name')), findsOneWidget);
+    expect(find.text('staff'), findsWidgets);
     expect(
-      find.text('2 routers on this floor · 3 in the survey, from 4 BSSIDs'),
+      find.text(
+        'staff · 2 routers in this network · 3 in the survey, from 4 BSSIDs',
+      ),
       findsOneWidget,
     );
-    expect(find.text('Router 1: guest, staff'), findsOneWidget);
-    expect(find.text('Router 2: staff'), findsOneWidget);
-    // The strongest router is shown first; the second one is ticked on.
-    expect(find.byKey(const ValueKey('footprint-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('footprint-2')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('router-tile-2')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('footprint-2')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('router-tile-1')));
-    await tester.pumpAndSettle();
+    expect(find.text('Router 1'), findsOneWidget);
+    expect(find.text('Router 2'), findsOneWidget);
+    expect(find.text('Likely main · strongest -35 dBm'), findsOneWidget);
+    expect(find.text('Extender · strongest -50 dBm'), findsOneWidget);
+    expect(find.byKey(const ValueKey('network-heat')), findsOneWidget);
     expect(find.byKey(const ValueKey('footprint-1')), findsNothing);
+    expect(find.byKey(const ValueKey('footprint-2')), findsNothing);
     // Rows and markers keep 48 dp targets.
     expect(
       tester.getSize(find.byKey(const ValueKey('router-tile-1'))).height,
@@ -89,8 +90,16 @@ void main() {
     );
     // Router 1 is the primary blue, not a signal colour.
     expect((disc.decoration! as BoxDecoration).color, AppColors.primary);
+    await tester.tap(find.byKey(const ValueKey('router-tile-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Likely main (estimate)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('main-heuristic')), findsOneWidget);
+    expect(find.textContaining('strongest reading'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
     await tester.tap(marker);
     await tester.pumpAndSettle();
+    expect(find.text('Extender'), findsWidgets);
     expect(find.text('Low confidence placement'), findsOneWidget);
     expect(find.textContaining('aa:bb:cc:dd:ee:20'), findsOneWidget);
   });
@@ -107,8 +116,7 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
-    expect(find.text('Extended networks'), findsOneWidget);
-    expect(find.text('staff: Router 1, Router 2'), findsOneWidget);
+    expect(find.text('Links and gaps'), findsOneWidget);
     expect(
       find.textContaining(
         'Router 1 → Router 2 · 10 m · dead gap 4 m (weakest -91 dBm)',
@@ -126,11 +134,6 @@ void main() {
       find.byKey(const ValueKey('chain-links')),
     );
     expect(links.polylines.single.color, AppColors.dead);
-    // Tapping the chain shows every router of it.
-    await tester.tap(find.byKey(const ValueKey('chain-0')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('footprint-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('footprint-2')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('show-gaps')));
     await tester.pumpAndSettle();
     expect(
@@ -140,18 +143,61 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('show-gaps')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('gaps-0')), findsNothing);
+    expect(find.byKey(const ValueKey('network-heat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chain-links')), findsOneWidget);
   });
 
-  testWidgets('switches floors', (tester) async {
-    await pumpRouters(tester, () => jsonResponse(coverageJson()));
-    await tester.tap(find.byKey(const ValueKey('router-floor-1')));
+  testWidgets('lists an undetermined router without a pin', (tester) async {
+    await pumpRouters(
+      tester,
+      () => jsonResponse(
+        coverageJson(
+          extendedNetworks: [
+            staffNetwork(
+              routers: [
+                extendedRouterJson(1, role: 'likely_main', rssi: -35),
+                extendedRouterJson(2, determined: false, rssi: -78),
+              ],
+              links: [],
+              includeGaps: false,
+            ),
+          ],
+        ),
+      ),
+    );
+    expect(find.textContaining('Position not determined'), findsOneWidget);
+    expect(find.byKey(const ValueKey('router-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('router-2')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('router-tile-2')));
     await tester.pumpAndSettle();
-    expect(find.text('Router 3: lab'), findsOneWidget);
-    expect(find.byKey(const ValueKey('footprint-3')), findsOneWidget);
-    expect(find.byKey(const ValueKey('no-chains')), findsOneWidget);
+    expect(find.text('Position not determined'), findsWidgets);
+    expect(find.text('Likely main (estimate)'), findsNothing);
   });
 
-  testWidgets('not processed, empty and offline', (tester) async {
+  testWidgets('switches between extended networks', (tester) async {
+    final guest = staffNetwork();
+    guest['ssid'] = 'guest';
+    guest['likely_main'] = 'r1';
+    final staff = staffNetwork();
+    await pumpRouters(
+      tester,
+      () => jsonResponse(coverageJson(extendedNetworks: [staff, guest])),
+    );
+    expect(find.byKey(const ValueKey('network-picker')), findsOneWidget);
+    expect(find.text('staff'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('network-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('guest').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('guest · 2 routers in this network'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('not processed, empty, no extended networks and offline', (
+    tester,
+  ) async {
     await pumpRouters(
       tester,
       () => jsonResponse({
@@ -164,6 +210,11 @@ void main() {
       () => jsonResponse({'floors': <Object>[], 'thresholds': null}),
     );
     expect(find.text('No routers'), findsOneWidget);
+    await pumpRouters(
+      tester,
+      () => jsonResponse(coverageJson(extendedNetworks: [])),
+    );
+    expect(find.text('No extended networks'), findsOneWidget);
     await pumpRouters(tester, () => throw http.ClientException('offline'));
     expect(find.text("You're offline"), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);

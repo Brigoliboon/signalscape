@@ -18,6 +18,11 @@ import {
   ROUTER_PALETTE,
   footprintPixels,
   linkText,
+  extendedNetworks,
+  networkNamed,
+  networkFloorOf,
+  uniqueNetworkRouters,
+  routerRoleText,
   routerColor,
   routerTitle,
   LEVEL_COLORS,
@@ -291,4 +296,41 @@ test('router titles and link texts match the app (FR-27, FR-29)', () => {
     'A → B · 10 m · covered all the way (weakest -55 dBm)',
   );
   assert.equal(linkText({ ...link, status: 'no_data' }, 'A', 'B'), 'A → B · 10 m · not walked, no data');
+});
+
+test('extended networks list routers with a likely-main estimate', () => {
+  const data = {
+    extended_networks: [
+      {
+        ssid: 'staff',
+        floors: [
+          {
+            floor_id: 'f0',
+            routers: [
+              { router_id: 'r1', number: 1, role: 'likely_main', position_determined: true, lat: 1, lng: 2 },
+              { router_id: 'r2', number: 2, role: 'extender', position_determined: false, lat: null, lng: null },
+            ],
+          },
+          {
+            floor_id: 'f1',
+            routers: [
+              { router_id: 'r2', number: 2, role: 'extender', position_determined: false, lat: null, lng: null },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  assert.equal(extendedNetworks(data).length, 1);
+  assert.equal(networkNamed(data, 'staff').ssid, 'staff');
+  assert.equal(networkNamed(data, 'guest'), null);
+  assert.equal(networkFloorOf(networkNamed(data, 'staff'), 'f1').floor_id, 'f1');
+  const routers = uniqueNetworkRouters(networkNamed(data, 'staff'));
+  assert.deepEqual(
+    routers.map((r) => r.router_id),
+    ['r1', 'r2'],
+  );
+  assert.equal(routerRoleText(routers[0]), 'Likely main (estimate)');
+  assert.equal(routerRoleText(routers[1]), POSITION_NOT_DETERMINED);
+  assert.equal(routerRoleText({ role: 'extender', position_determined: true, lat: 1, lng: 2 }), 'Extender');
 });

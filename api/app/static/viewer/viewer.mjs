@@ -37,6 +37,11 @@ import {
   linkText,
   routerColor,
   routerTitle,
+  routerRoleText,
+  extendedNetworks,
+  networkNamed,
+  networkFloorOf,
+  uniqueNetworkRouters,
   networkLabel,
   parseFragment,
   toLocal,
@@ -99,6 +104,7 @@ const els = {
   modeRouters: $('mode-routers'),
   routerSet: $('router-set'),
   routerCount: $('router-count'),
+  networkExtended: $('network-extended'),
   routerList: $('router-list'),
   chainList: $('chain-list'),
   showGaps: $('show-gaps'),
@@ -123,7 +129,7 @@ const state = {
   // Router coverage mode (FR-27 to FR-29): a separate mode, read on first use.
   mode: 'coverage',
   routers: null,
-  selectedRouters: new Set(),
+  selectedSsid: '',
 };
 
 let renderer = null;
@@ -442,13 +448,33 @@ function makeHeatTexture(floor) {
 }
 
 /** Redraw the heat pictures after the minimum signal or the contour toggle changed. */
+function refreshCoverageHeat(floor) {
+  const mesh = floor.routerMeshes && floor.routerMeshes.coverage;
+  if (!mesh) return;
+  const savedGrid = floor.grid;
+  const savedField = floor.field;
+  const savedHeat = floor.heat;
+  floor.grid = mesh.userData.coverageGrid;
+  floor.field = null;
+  floor.heat = null;
+  const old = mesh.material.map;
+  mesh.material.map = makeHeatTexture(floor);
+  mesh.material.needsUpdate = true;
+  if (old) old.dispose();
+  floor.grid = savedGrid;
+  floor.field = savedField;
+  floor.heat = savedHeat;
+}
+
 function refreshHeat() {
   for (const floor of state.floors) {
-    if (!floor.heat) continue;
-    const old = floor.heat.material.map;
-    floor.heat.material.map = makeHeatTexture(floor);
-    floor.heat.material.needsUpdate = true;
-    if (old) old.dispose();
+    if (floor.heat) {
+      const old = floor.heat.material.map;
+      floor.heat.material.map = makeHeatTexture(floor);
+      floor.heat.material.needsUpdate = true;
+      if (old) old.dispose();
+    }
+    refreshCoverageHeat(floor);
   }
   requestRender();
 }
@@ -533,32 +559,124 @@ function pictureScale(grid, most) {
 }
 
 /**
- * Router coverage mode of one floor: each router's footprint in its own colour,
- * its marker, the links of each chain coloured by the worst gap on them, and the
- * weak and dead gaps along those links in the zone colours.
+ * Router coverage mode of one floor: the selected extended network's heatmap,
+ * its likely main and extenders as markers, the MST links coloured by the
+ * worst gap on them, and the weak and dead gaps along those links. Reach
+ * comes from the heatmap, not per-router footprints.
  */
+function selectedNetwork() {
+  return networkNamed(state.routers, state.selectedSsid) || extendedNetworks(state.routers)[0] || null;
+}
+
+function disposeObject(object, group) {
+  if (!object) return;
+  group.remove(object);
+  object.geometry?.dispose?.();
+  const materials = object.material
+    ? Array.isArray(object.material)
+      ? object.material
+      : [object.material]
+    : [];
+  for (const material of materials) {
+    material.map?.dispose?.();
+    material.dispose?.();
+  }
+}
+
+function clearRouters(floor) {
+  const meshes = floor.routerMeshes;
+  if (!meshes) return;
+  for (const item of meshes.footprints || []) disposeObject(item.mesh, floor.group);
+  disposeObject(meshes.coverage, floor.group);
+  for (const mesh of meshes.gaps || []) disposeObject(mesh, floor.group);
+  for (const line of meshes.links || []) disposeObject(line, floor.group);
+  for (const marker of meshes.markers || []) disposeObject(marker, floor.group);
+  floor.routerMeshes = null;
+}
+
+/** The network's coverage heatmap, drawn with the same ramp as coverage mode. */
+function addNetworkHeat(floor, grid) {
+  const savedGrid = floor.grid;
+  const savedField = floor.field;
+  const savedHeat = floor.heat;
+  floor.grid = grid;
+  floor.field = null;
+  floor.heat = null;
+  const layout = gridLayout(grid);
+  const pad = PAD_CELLS * layout.cell;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(layout.width + 2 * pad, layout.depth + 2 * pad),
+    new THREE.MeshBasicMaterial({
+      map: makeHeatTexture(floor),
+      transparent: true,
+      opacity: state.heat.opacity,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(layout.centerX, 0.055, layout.centerZ);
+  mesh.userData.coverageGrid = grid;
+  mesh.userData.layout = layout;
+  floor.grid = savedGrid;
+  floor.field = savedField;
+  floor.heat = savedHeat;
+  return mesh;
+}
+
 function addRouters(floor, unit) {
-  const data = state.routers.floors.find((f) => f.floor_id === floor.info.floor_id);
-  if (!data) return;
-  const meshes = { footprints: [], gaps: [], links: [], markers: [] };
+  clearRouters(floor);
+  const network = selectedNetwork();
+  const data = networkFloorOf(network, floor.info.floor_id);
+  const meshes = { footprints: [], coverage: null, gaps: [], links: [], markers: [], bodies: [] };
+  if (!data) {
+    floor.routerMeshes = meshes;
+    return;
+  }
   const local = (r) => toLocal(r.lat, r.lng, state.survey.origin_lat, state.survey.origin_lng);
-  for (const router of data.routers) {
-    const color = routerColor(router.number);
-    const grid = router.footprint;
-    const pixels = footprintPixels(
-      grid.values,
-      grid.cols,
-      grid.rows,
-      state.thresholds,
-      color,
-      pictureScale(grid, FOOTPRINT_PIXELS_PER_CELL),
+  if (data.coverage) {
+    const mesh = addNetworkHeat(floor, data.coverage);
+    floor.group.add(mesh);
+    meshes.coverage = mesh;
+  }
+  if (data.gaps) {
+    const g = data.gaps;
+    const mesh = gridPlane(
+      g,
+      zonePixels(g.values, g.cols, g.rows, state.thresholds, pictureScale(g, ZONE_PIXELS_PER_CELL)),
+      0.1,
     );
-    if (pixels.data.some((v, i) => i % 4 === 3 && v > 0)) {
-      const mesh = gridPlane(grid, pixels, 0.06 + 0.002 * router.number);
-      floor.group.add(mesh);
-      meshes.footprints.push({ mesh, id: router.router_id });
-    }
-    if (router.lat === null || router.lat === undefined) continue;
+    floor.group.add(mesh);
+    meshes.gaps.push(mesh);
+  }
+  const byId = new Map((data.routers || []).map((r) => [r.router_id, r]));
+  for (const link of data.links || []) {
+    const a = byId.get(link.from_router);
+    const b = byId.get(link.to_router);
+    if (!a || !b || !isPositionDetermined(a) || !isPositionDetermined(b)) continue;
+    const pa = local(a);
+    const pb = local(b);
+    const y = TRAIL_Y + 0.1;
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(pa.x, y, -pa.y),
+        new THREE.Vector3(pb.x, y, -pb.y),
+      ]),
+      link.status === 'covered'
+        ? new THREE.LineBasicMaterial({ color: LINK_COLORS.covered })
+        : new THREE.LineDashedMaterial({
+            color: LINK_COLORS[link.status] || LINK_COLORS.no_data,
+            dashSize: unit * 1.2,
+            gapSize: unit * 0.7,
+          }),
+    );
+    line.computeLineDistances();
+    floor.group.add(line);
+    meshes.links.push(line);
+  }
+  for (const router of data.routers || []) {
+    if (!isPositionDetermined(router)) continue;
+    const color = routerColor(router.number);
     const at = local(router);
     const low = isLowConfidence(router);
     const marker = new THREE.Group();
@@ -583,44 +701,7 @@ function addRouters(floor, unit) {
     body.userData.router = router;
     floor.group.add(marker);
     meshes.markers.push(marker);
-    meshes.bodies = [...(meshes.bodies || []), body];
-  }
-  const byId = new Map(data.routers.map((r) => [r.router_id, r]));
-  for (const chain of data.chains) {
-    if (chain.gaps) {
-      const g = chain.gaps;
-      const mesh = gridPlane(
-        g,
-        zonePixels(g.values, g.cols, g.rows, state.thresholds, pictureScale(g, ZONE_PIXELS_PER_CELL)),
-        0.1,
-      );
-      floor.group.add(mesh);
-      meshes.gaps.push(mesh);
-    }
-    for (const link of chain.links) {
-      const a = byId.get(link.from_router);
-      const b = byId.get(link.to_router);
-      if (!a || !b || a.lat === null || b.lat === null) continue;
-      const pa = local(a);
-      const pb = local(b);
-      const y = TRAIL_Y + 0.1;
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(pa.x, y, -pa.y),
-          new THREE.Vector3(pb.x, y, -pb.y),
-        ]),
-        link.status === 'covered'
-          ? new THREE.LineBasicMaterial({ color: LINK_COLORS.covered })
-          : new THREE.LineDashedMaterial({
-              color: LINK_COLORS[link.status] || LINK_COLORS.no_data,
-              dashSize: unit * 1.2,
-              gapSize: unit * 0.7,
-            }),
-      );
-      line.computeLineDistances();
-      floor.group.add(line);
-      meshes.links.push(line);
-    }
+    meshes.bodies.push(body);
   }
   floor.routerMeshes = meshes;
 }
@@ -752,7 +833,8 @@ function applyVisibility(floor) {
   }
   const routers = floor.routerMeshes;
   if (routers) {
-    for (const item of routers.footprints) item.mesh.visible = routerMode && state.selectedRouters.has(item.id);
+    for (const item of routers.footprints || []) item.mesh.visible = false;
+    if (routers.coverage) routers.coverage.visible = routerMode;
     for (const mesh of routers.gaps) mesh.visible = routerMode && els.showGaps.checked;
     for (const line of routers.links) line.visible = routerMode;
     for (const marker of routers.markers) marker.visible = routerMode;
@@ -823,8 +905,10 @@ function pick(event) {
   for (const floor of state.floors) {
     if (!floor.visible) continue;
     if (state.mode === 'routers') {
-      // The strongest-signal cells are not on show in this mode.
-      if (floor.routerMeshes) targets.push(...(floor.routerMeshes.bodies || []));
+      if (floor.routerMeshes) {
+        targets.push(...(floor.routerMeshes.bodies || []));
+        if (floor.routerMeshes.coverage) targets.push(floor.routerMeshes.coverage);
+      }
       continue;
     }
     const surface = floor.heat || floor.slab;
@@ -841,11 +925,16 @@ function pick(event) {
   const router = hit.object.userData.router;
   const ap = hit.object.userData.accessPoint;
   if (router) {
-    const names = router.networks.map((n) => `${n.ssid ? n.ssid : '(hidden)'} ${n.bssid}`).join(', ');
-    showInfo(
-      `${router.label}${isLowConfidence(router) ? ' (low confidence placement)' : ''}: ${names} · ` +
-        `${Math.round(router.area_m2)} m² at or above ${state.thresholds.dead_dbm} dBm`,
-    );
+    const confidence = isLowConfidence(router) ? ' · low confidence placement' : '';
+    const area =
+      router.area_m2 === null || router.area_m2 === undefined
+        ? ''
+        : ` · ${Math.round(router.area_m2)} m² at or above ${state.thresholds.dead_dbm} dBm`;
+    const strongest =
+      router.max_rssi_dbm === null || router.max_rssi_dbm === undefined
+        ? ''
+        : ` · strongest ${formatDbm(router.max_rssi_dbm)}`;
+    showInfo(`${router.label} · ${routerRoleText(router)}${confidence}${strongest}${area}`);
   } else if (ap) {
     const name = ap.ssid && ap.ssid.length > 0 ? ap.ssid : '(hidden network)';
     if (!isPositionDetermined(ap)) {
@@ -863,15 +952,21 @@ function pick(event) {
 }
 
 function describeCell(hit) {
-  const floor = state.floors.find((f) => f.heat === hit.object || f.slab === hit.object);
+  const coverage = state.floors.find((f) => f.routerMeshes && f.routerMeshes.coverage === hit.object);
+  const floor = coverage || state.floors.find((f) => f.heat === hit.object || f.slab === hit.object);
   if (!floor) return;
-  if (!floor.grid || floor.heat !== hit.object) {
+  const grid = coverage
+    ? floor.routerMeshes.coverage.userData.coverageGrid
+    : floor.heat === hit.object
+      ? floor.grid
+      : null;
+  if (!grid) {
     showInfo(`${floor.info.floor_label}: no readings of this network on this floor`);
     return;
   }
   // The nearest grid cell: the picture is smooth, the numbers are the cells' own.
-  const { index } = cellAtPadded(hit.uv.x, hit.uv.y, floor.grid.cols, floor.grid.rows);
-  const value = floor.grid.values[index];
+  const { index } = cellAtPadded(hit.uv.x, hit.uv.y, grid.cols, grid.rows);
+  const value = grid.values[index];
   if (value === null || value === undefined) {
     showInfo(`${floor.info.floor_label}: no data here (no reading within 5 m)`);
     return;
@@ -905,13 +1000,13 @@ function buildRampBar() {
 
 function routerLegendRows() {
   const rows = [];
-  const seen = new Set();
-  for (const floor of state.routers.floors) {
-    for (const router of floor.routers) {
-      if (seen.has(router.router_id) || !state.selectedRouters.has(router.router_id)) continue;
-      seen.add(router.router_id);
-      rows.push({ text: `${router.label} footprint`, color: routerColor(router.number), router: true });
-    }
+  const network = selectedNetwork();
+  for (const router of uniqueNetworkRouters(network)) {
+    rows.push({
+      text: `${router.label}: ${routerRoleText(router)}`,
+      color: routerColor(router.number),
+      router: true,
+    });
   }
   if (els.showGaps.checked) {
     for (const entry of zoneLegendEntries(state.thresholds)) {
@@ -928,8 +1023,8 @@ function routerLegendRows() {
 function buildLegend() {
   buildRampBar();
   els.legend.replaceChildren();
-  // The signal ramp belongs to the strongest-signal heatmap, not to router mode.
-  els.rampBar.parentElement.hidden = state.mode === 'routers';
+  // Router mode also uses the signal ramp: reach is the network heatmap.
+  els.rampBar.parentElement.hidden = false;
   if (state.mode === 'routers' && state.routers) {
     renderLegendRows(routerLegendRows());
     return;
@@ -975,64 +1070,88 @@ function renderLegendRows(rows) {
 /** The router and chain lists of the Layers sheet (router mode). */
 function buildRouterList() {
   const data = state.routers;
+  const networks = extendedNetworks(data);
   els.routerList.replaceChildren();
   els.chainList.replaceChildren();
+  els.networkExtended.replaceChildren();
   const routers = data.router_count === 1 ? '1 router' : `${data.router_count} routers`;
-  els.routerCount.textContent =
-    `${routers} in the survey, from ${data.bssid_count} BSSIDs. One radio that serves several network names counts once.`;
-  const seen = new Set();
-  for (const floor of data.floors) {
-    for (const router of floor.routers) {
-      if (seen.has(router.router_id)) continue;
-      seen.add(router.router_id);
-      const label = document.createElement('label');
-      label.className = 'check';
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.checked = state.selectedRouters.has(router.router_id);
-      box.addEventListener('change', () => {
-        if (box.checked) state.selectedRouters.add(router.router_id);
-        else state.selectedRouters.delete(router.router_id);
-        buildLegend();
-        applyAllVisibility();
-      });
-      const swatch = document.createElement('span');
-      swatch.className = 'swatch router';
-      swatch.style.background = routerColor(router.number);
-      swatch.setAttribute('aria-hidden', 'true');
-      const text = document.createElement('span');
-      text.textContent = routerTitle(router);
-      const small = document.createElement('small');
-      const bssids = new Set(router.networks.map((n) => n.bssid)).size;
-      small.textContent = `${bssids} ${bssids === 1 ? 'BSSID' : 'BSSIDs'} · ${Math.round(router.area_m2)} m² on ${floor.floor_label}`;
-      text.append(small);
-      label.append(box, swatch, text);
-      els.routerList.append(label);
-    }
-  }
-  for (const floor of data.floors) {
-    const byId = new Map(floor.routers.map((r) => [r.router_id, r]));
-    const name = (id) => (byId.get(id) ? byId.get(id).label : id);
-    for (const chain of floor.chains) {
-      const item = document.createElement('li');
-      const ssids = chain.ssids.map((s) => (s ? s : '(hidden)')).join(', ');
-      item.textContent = `${floor.floor_label} · ${ssids}: ${chain.router_ids.map(name).join(', ')}`;
-      const lines = chain.links.map((link) => linkText(link, name(link.from_router), name(link.to_router)));
-      if (chain.links.length === 0) lines.push('Fewer than two of these routers are placed on this floor.');
-      else if (chain.weak_cells + chain.dead_cells === 0) lines.push('No weak or dead gap between them.');
-      for (const line of lines) {
-        const small = document.createElement('small');
-        small.textContent = line;
-        item.append(small);
-      }
-      els.chainList.append(item);
-    }
-  }
-  if (!els.chainList.childElementCount) {
+  if (networks.length === 0) {
+    els.routerCount.textContent =
+      `${routers} in the survey, from ${data.bssid_count} BSSIDs. A network is extended when two or more routers broadcast the same name. This survey has none to trace.`;
+    els.networkExtended.hidden = true;
     const item = document.createElement('li');
-    item.textContent = 'No network name is shared by two routers on one floor, so there is no chain to trace.';
+    item.textContent = 'No extended networks to show.';
+    els.chainList.append(item);
+    return;
+  }
+  els.networkExtended.hidden = false;
+  const network = selectedNetwork();
+  els.routerCount.textContent =
+    `${network.name || network.ssid}: ${network.router_count} ${network.router_count === 1 ? 'router' : 'routers'} in this network · ${routers} in the survey, from ${data.bssid_count} BSSIDs. Likely main is an estimate: Wi-Fi scans do not say which device is the main router or an extender. Reach is the heatmap.`;
+  if (data.main_heuristic) {
+    const note = document.createElement('small');
+    note.textContent = data.main_heuristic;
+    // keep it on the note paragraph via title as well
+    els.routerCount.title = data.main_heuristic;
+  }
+  for (const item of networks) {
+    const option = document.createElement('option');
+    option.value = item.ssid;
+    option.textContent = item.ssid || '(hidden network)';
+    option.selected = item.ssid === (network && network.ssid);
+    els.networkExtended.append(option);
+  }
+  for (const router of uniqueNetworkRouters(network)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'router-row';
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch router';
+    swatch.style.background = routerColor(router.number);
+    swatch.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.textContent = router.label;
+    const small = document.createElement('small');
+    small.textContent = `${routerRoleText(router)} · strongest ${router.max_rssi_dbm} dBm`;
+    text.append(small);
+    button.append(swatch, text);
+    button.addEventListener('click', () => {
+      const confidence = isLowConfidence(router) && isPositionDetermined(router)
+        ? ' · low confidence placement'
+        : '';
+      showInfo(`${router.label} · ${routerRoleText(router)}${confidence} · strongest ${formatDbm(router.max_rssi_dbm)}`);
+    });
+    els.routerList.append(button);
+  }
+  const nameOf = (id, floor) => {
+    const found = (floor.routers || []).find((r) => r.router_id === id);
+    return found ? found.label : id;
+  };
+  for (const floor of network.floors || []) {
+    const item = document.createElement('li');
+    item.textContent = `${floor.floor_label}: ${(floor.routers || []).map((r) => r.label).join(', ')}`;
+    const lines = (floor.links || []).map((link) => linkText(link, nameOf(link.from_router, floor), nameOf(link.to_router, floor)));
+    if ((floor.links || []).length === 0) {
+      lines.push('Fewer than two of these routers are placed on this floor.');
+    } else if ((floor.weak_cells || 0) + (floor.dead_cells || 0) === 0) {
+      lines.push('No weak or dead gap between them.');
+    }
+    for (const line of lines) {
+      const small = document.createElement('small');
+      small.textContent = line;
+      item.append(small);
+    }
     els.chainList.append(item);
   }
+}
+
+function pickExtendedNetwork(ssid) {
+  if (!ssid || ssid === state.selectedSsid) return;
+  state.selectedSsid = ssid;
+  for (const floor of state.floors) addRouters(floor, worldUnit());
+  buildRouterList();
+  buildLegend();
+  applyAllVisibility();
 }
 
 async function setMode(mode) {
@@ -1044,8 +1163,7 @@ async function setMode(mode) {
       const data = await api(`/surveys/${state.surveyId}/routers`);
       if (generation !== state.generation) return;
       state.routers = data;
-      const first = data.floors.flatMap((f) => f.routers).find((r) => r.number === 1);
-      state.selectedRouters = new Set(first ? [first.router_id] : []);
+      state.selectedSsid = extendedNetworks(data)[0]?.ssid || '';
       hideStatus();
     } catch (error) {
       showStatus(errorText(error), true);
@@ -1069,6 +1187,7 @@ els.showGaps.addEventListener('change', () => {
   buildLegend();
   applyAllVisibility();
 });
+els.networkExtended.addEventListener('change', () => pickExtendedNetwork(els.networkExtended.value));
 
 function floorSummaryText(floor) {
   if (!floor.layout) return 'No usable readings';
@@ -1170,6 +1289,9 @@ els.opacity.addEventListener('input', () => {
   state.heat.opacity = Number(els.opacity.value) / 100;
   for (const floor of state.floors) {
     if (floor.heat) floor.heat.material.opacity = state.heat.opacity;
+    if (floor.routerMeshes && floor.routerMeshes.coverage) {
+      floor.routerMeshes.coverage.material.opacity = state.heat.opacity;
+    }
   }
   showHeatSettings();
   requestRender();
@@ -1252,7 +1374,7 @@ async function start({ surveyId, token }) {
     floors: [],
     mode: 'coverage',
     routers: null,
-    selectedRouters: new Set(),
+    selectedSsid: '',
   });
   els.modeCoverage.setAttribute('aria-pressed', 'true');
   els.modeRouters.setAttribute('aria-pressed', 'false');
