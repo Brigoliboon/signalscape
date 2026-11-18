@@ -6,6 +6,8 @@ import {
   CONFIDENCE_NOTE,
   apConfidenceText,
   isLowConfidence,
+  isPositionDetermined,
+  POSITION_NOT_DETERMINED,
   ZONE_ALPHA,
   ZONE_HATCH_ALPHA,
   zoneLegendEntries,
@@ -185,6 +187,19 @@ test('access point confidence text and flag (FR-24, FR-25)', () => {
   const old = { reading_count: 1, confidence: null, low_confidence: null, spread_m: null };
   assert.equal(isLowConfidence(old), true);
   assert.equal(apConfidenceText(old), 'Low confidence: 1 reading · not rated, process the survey again');
+});
+
+test('an access point position is determined only with coordinates and a strong reading', () => {
+  assert.equal(POSITION_NOT_DETERMINED, 'Position not determined');
+  const placed = { lat: 14.6, lng: 121.0, position_determined: true };
+  assert.equal(isPositionDetermined(placed), true);
+  const hidden = { lat: 14.6, lng: 121.0, position_determined: false };
+  assert.equal(isPositionDetermined(hidden), false);
+  const missing = { lat: null, lng: null, position_determined: false };
+  assert.equal(isPositionDetermined(missing), false);
+  // Older payloads have no flag: coordinates mean it can be plotted.
+  assert.equal(isPositionDetermined({ lat: 14.6, lng: 121.0 }), true);
+  assert.equal(isPositionDetermined({ lat: null, lng: null }), false);
 });
 
 test('zone layer legend ranges follow the thresholds (FR-26)', () => {

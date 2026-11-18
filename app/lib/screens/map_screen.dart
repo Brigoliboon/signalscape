@@ -356,8 +356,14 @@ class _MapScreenState extends State<MapScreen> {
               Text('BSSID ${ap.bssid}', style: mono(size: 14)),
               const SizedBox(height: 4),
               Text(
-                ap.confidenceText,
-                key: const ValueKey('ap-confidence'),
+                ap.positionDetermined
+                    ? ap.confidenceText
+                    : MapAccessPoint.positionNotDeterminedText,
+                key: ValueKey(
+                  ap.positionDetermined
+                      ? 'ap-confidence'
+                      : 'ap-position-undetermined',
+                ),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
@@ -571,23 +577,24 @@ class _MapScreenState extends State<MapScreen> {
               MarkerLayer(
                 markers: [
                   for (final ap in floor.accessPoints)
-                    Marker(
-                      point: ap.at,
-                      width: kTarget,
-                      height: kTarget,
-                      child: Semantics(
-                        key: ValueKey('ap-${ap.bssid}'),
-                        button: true,
-                        label: ap.lowConfidence
-                            ? 'Access point ${ap.name}, low confidence'
-                            : 'Access point ${ap.name}',
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _showAccessPoint(ap),
-                          child: ApMarker(lowConfidence: ap.lowConfidence),
+                    if (ap.positionDetermined && ap.at != null)
+                      Marker(
+                        point: ap.at!,
+                        width: kTarget,
+                        height: kTarget,
+                        child: Semantics(
+                          key: ValueKey('ap-${ap.bssid}'),
+                          button: true,
+                          label: ap.lowConfidence
+                              ? 'Access point ${ap.name}, low confidence'
+                              : 'Access point ${ap.name}',
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _showAccessPoint(ap),
+                            child: ApMarker(lowConfidence: ap.lowConfidence),
+                          ),
                         ),
                       ),
-                    ),
                 ],
               ),
           ],
@@ -762,6 +769,18 @@ class _MapScreenState extends State<MapScreen> {
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ),
+          if (_undeterminedOf(_bssid) case final ap?)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: GestureDetector(
+                onTap: () => _showAccessPoint(ap),
+                child: const Text(
+                  MapAccessPoint.positionNotDeterminedText,
+                  key: ValueKey('ap-position-undetermined'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -870,6 +889,17 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _noDataHere(FloorLayer floor) =>
       _bssid != null && floor.cells.isEmpty && floor.accessPoints.isEmpty;
+
+  /// The selected network's access point when it has no strong reading yet.
+  MapAccessPoint? _undeterminedOf(String? bssid) {
+    if (bssid == null || _data == null) return null;
+    for (final floor in _data!.floors) {
+      for (final ap in floor.accessPoints) {
+        if (ap.bssid == bssid && !ap.positionDetermined) return ap;
+      }
+    }
+    return null;
+  }
 
   /// The same choice as the 3D view's network list: the strongest signal of
   /// any network, or one network by SSID and BSSID.

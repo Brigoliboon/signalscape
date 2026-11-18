@@ -197,6 +197,20 @@ export function isLowConfidence(ap) {
   return ap.low_confidence !== false;
 }
 
+/** Shown when an access point has no reading in the good/strong band. */
+export const POSITION_NOT_DETERMINED = 'Position not determined';
+
+/**
+ * Whether an access point has a plottable position: at least one reading in
+ * the good/strong band (FR-15, default -67 dBm). Older payloads have no flag
+ * and count as determined when coordinates are present.
+ */
+export function isPositionDetermined(ap) {
+  if (ap.position_determined === false) return false;
+  if (ap.lat == null || ap.lng == null) return false;
+  return ap.position_determined !== false;
+}
+
 /** The detail line for a tapped access point: confidence, readings and spread (FR-25). */
 export function apConfidenceText(ap) {
   const count = Number(ap.reading_count) || 0;

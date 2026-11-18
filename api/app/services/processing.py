@@ -410,6 +410,17 @@ def level_for(rssi: float, good_dbm: int, dead_dbm: int) -> str:
     return LEVEL_FAIR
 
 
+def position_determined(max_rssi_dbm: float | int, good_dbm: int) -> bool:
+    """True when at least one reading is in the good/strong band (FR-15).
+
+    The good band is at or above ``good_dbm`` (default -67 dBm), the strong end
+    of the heatmap colour ramp (red at -30 dBm, green at the -67 dBm stop).
+    ``max_rssi_dbm`` is the access point's strongest reading, so this is the
+    same as "at least one strong reading".
+    """
+    return max_rssi_dbm >= good_dbm
+
+
 def level_shares(
     values: np.ndarray, good_dbm: int, dead_dbm: int
 ) -> tuple[float, float, float]:

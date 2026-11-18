@@ -87,8 +87,12 @@ def router_coverage(
             )
         )
     }
+    # Only determined positions (at least one strong/good-band reading) are
+    # used to split radios that sit more than 10 m apart, or to place a router.
     positions = {
-        bssid: (ap.floor_id, *local(ap.lat, ap.lng)) for bssid, ap in estimates.items()
+        bssid: (ap.floor_id, *local(ap.lat, ap.lng))
+        for bssid, ap in estimates.items()
+        if proc.position_determined(ap.max_rssi_dbm, thresholds.good_dbm)
     }
 
     # Network names and counts per floor and BSSID, from the readings.
@@ -163,7 +167,11 @@ def router_coverage(
             here = [
                 estimates[b]
                 for b in members[router_id]
-                if b in estimates and estimates[b].floor_id == floor.id
+                if b in estimates
+                and estimates[b].floor_id == floor.id
+                and proc.position_determined(
+                    estimates[b].max_rssi_dbm, thresholds.good_dbm
+                )
             ]
             best = max(
                 here, key=lambda ap: (ap.max_rssi_dbm, ap.reading_count), default=None

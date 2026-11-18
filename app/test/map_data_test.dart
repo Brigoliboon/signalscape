@@ -36,8 +36,8 @@ Map<String, dynamic> cell(
 };
 
 Map<String, dynamic> ap(
-  double lng,
-  double lat,
+  double? lng,
+  double? lat,
   int floor, {
   String ssid = 'Lab',
   String bssid = 'aa:bb:cc:dd:ee:01',
@@ -45,22 +45,27 @@ Map<String, dynamic> ap(
   double? confidence,
   bool? lowConfidence,
   double? spreadM,
+  int rssiDbm = -48,
+  bool? positionDetermined,
 }) => {
   'type': 'Feature',
-  'geometry': {
-    'type': 'Point',
-    'coordinates': [lng, lat],
-  },
+  'geometry': (lng != null && lat != null)
+      ? {
+          'type': 'Point',
+          'coordinates': [lng, lat],
+        }
+      : null,
   'properties': {
     'kind': 'access_point',
     'ssid': ssid,
     'bssid': bssid,
     'floor_level': floor,
-    'rssi_dbm': -48,
+    'rssi_dbm': rssiDbm,
     'reading_count': readings,
     'confidence': ?confidence,
     'low_confidence': ?lowConfidence,
     'spread_m': ?spreadM,
+    'position_determined': ?positionDetermined,
   },
 };
 
@@ -184,6 +189,37 @@ void main() {
       expect(aps.first.readingCount, 7);
       expect(aps.first.at, const LatLng(14.6002, 121.0002));
       expect(aps.last.name, '(hidden network)');
+      expect(aps.first.positionDetermined, isTrue);
+    });
+
+    test('undetermined access points have no pin but stay in the list', () {
+      final data = SurveyMapData.parse(
+        geojson: collection([
+          cell(121.0, 14.6, -50, 0, level: 'good'),
+          ap(
+            null,
+            null,
+            0,
+            bssid: 'aa:bb:cc:dd:ee:09',
+            rssiDbm: -78,
+            readings: 3,
+            positionDetermined: false,
+          ),
+        ]),
+      );
+      final aps = data.floorAt(0)!.accessPoints;
+      expect(aps, hasLength(1));
+      expect(aps.first.positionDetermined, isFalse);
+      expect(aps.first.at, isNull);
+      expect(aps.first.rssiDbm, -78);
+      expect(
+        MapAccessPoint.positionNotDeterminedText,
+        'Position not determined',
+      );
+      final box = boundsOf(data.floorAt(0)!);
+      expect(box, isNotNull);
+      // The undetermined AP does not stretch the bounds.
+      expect(box!.sw.latitude, closeTo(14.6, 1e-9));
     });
 
     test('access points keep their placement confidence (FR-25)', () {

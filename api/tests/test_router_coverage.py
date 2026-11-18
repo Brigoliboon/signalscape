@@ -117,6 +117,36 @@ def test_each_router_has_a_footprint_and_a_position(scene: RouterScene) -> None:
     assert main["lng"] < extender["lng"]
 
 
+def test_router_without_a_strong_reading_has_no_position(scene: RouterScene) -> None:
+    """Undetermined estimates are not used to place a router or to split one."""
+    weak_a = "99:88:77:66:55:20"
+    weak_b = "99:88:77:66:55:21"  # same radio prefix, 30 m away
+    add_readings(
+        scene.db,
+        scene.survey,
+        scene.floor,
+        [
+            (0.5, 0.5, -80, weak_a, "weak-net"),
+            (1.5, 0.5, -82, weak_a, "weak-net"),
+            (2.5, 0.5, -79, weak_a, "weak-net"),
+            (30.5, 0.5, -80, weak_b, "weak-net"),
+            (31.5, 0.5, -83, weak_b, "weak-net"),
+            (32.5, 0.5, -81, weak_b, "weak-net"),
+        ],
+        start=2000,
+    )
+    ground = scene.processed().routers().json()["floors"][0]
+    weak = next(r for r in ground["routers"] if r["router_id"] == weak_a)
+    assert {n["bssid"] for n in weak["networks"]} == {weak_a, weak_b}
+    assert weak["max_rssi_dbm"] == -79
+    assert weak["lat"] is None and weak["lng"] is None
+    main = next(r for r in ground["routers"] if r["router_id"] == STAFF)
+    assert main["lat"] is not None and main["lng"] is not None
+    # The existing chain still links the two placed routers only.
+    [chain] = [c for c in ground["chains"] if c["ssids"] == ["staff"]]
+    assert set(chain["router_ids"]) == {STAFF, EXTENDER}
+
+
 def test_chain_of_a_router_and_its_extender_shows_the_dead_gap(
     scene: RouterScene,
 ) -> None:
