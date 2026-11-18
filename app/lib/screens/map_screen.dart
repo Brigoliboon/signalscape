@@ -12,6 +12,7 @@ import '../core/zones.dart';
 import '../data/api_client.dart';
 import '../theme.dart';
 import '../widgets/view_switch.dart';
+import 'router_coverage_screen.dart';
 import 'survey_summary_screen.dart';
 
 enum _Stage { loading, ready, empty, notProcessed, failed }
@@ -377,6 +378,21 @@ class _MapScreenState extends State<MapScreen> {
       appBar: AppBar(
         title: const Text('Coverage'),
         actions: [
+          IconButton(
+            key: const ValueKey('open-routers'),
+            tooltip: 'Router coverage',
+            icon: const Icon(Icons.router_outlined),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => RouterCoverageScreen(
+                  api: widget.api,
+                  surveyId: widget.surveyId,
+                  tiles: _baseTiles,
+                  tileProvider: widget.tileProvider,
+                ),
+              ),
+            ),
+          ),
           IconButton(
             key: const ValueKey('open-summary'),
             tooltip: 'Summary and export',

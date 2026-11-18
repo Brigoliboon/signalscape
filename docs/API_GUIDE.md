@@ -230,6 +230,12 @@ curl -sS "$BASE/surveys/$SID/coverage?floor_id=9c978e73-9e30-4940-97e6-fe0de35d4
 
 The grid is plain data: the 3D page and the app turn it into a smooth colour picture themselves (see `docs/DESIGN.md`, "Heatmap display"), so there is no image endpoint and nothing about the picture to configure here.
 
+Router coverage mode (FR-27 to FR-29), separate from the strongest-signal heatmap: `GET /api/surveys/{id}/routers` (optional `floor_id`). Needs a processed survey. Per floor it lists each router (BSSIDs of one radio grouped; see `grouping` in the response) with the SSIDs it broadcasts, its estimated position and its footprint grid, and each chain of routers that share an SSID with the links between them and the weak and dead gap cells along those links. Response (shortened):
+
+```json
+{"survey_id":"6b3db87d-…","thresholds":{"good_dbm":-67,"dead_dbm":-80},"router_count":2,"bssid_count":3,"grouping":"BSSIDs with the same first five bytes …","gap_corridor_m":3.0,"floors":[{"floor_id":"9c978e73-…","floor_level":0,"floor_label":"Ground","router_count":2,"routers":[{"router_id":"aa:bb:cc:dd:ee:10","number":1,"label":"Router 1","ssids":["guest","staff"],"networks":[…],"max_rssi_dbm":-35,"lat":14.5995,"lng":120.9842,"confidence":0.9,"low_confidence":false,"area_m2":24.0,"good_area_m2":14.0,"footprint":{"origin_lat":…,"origin_lng":…,"north_lat":…,"east_lng":…,"cell_size_m":1.0,"cols":15,"rows":3,"values":[…]}}],"chains":[{"ssids":["staff"],"router_ids":["aa:bb:cc:dd:ee:10","11:22:33:44:55:60"],"links":[{"from_router":"aa:bb:cc:dd:ee:10","to_router":"11:22:33:44:55:60","length_m":19.6,"min_rssi_dbm":-90.4,"weak_m":3.8,"dead_m":6.2,"no_data_m":0.0,"status":"dead"}],"weak_cells":12,"dead_cells":18,"gap_area_m2":30.0,"gaps":{…}}]}]}
+```
+
 The walk, floor by floor (used by the app and the 3D page to draw the trail with start and end markers): `GET /api/surveys/{id}/trail`. Response (shortened):
 
 ```json
@@ -283,7 +289,7 @@ All under `/api/users`, admin only: `GET` (filters `role`, `is_active`, `q`; pag
 ## 7. Health check and the 3D page
 
 - `GET /api/health` needs no login and returns `{"status":"ok"}`, or `503` with `{"detail":"database unavailable"}`. The deploy smoke test uses it.
-- The 3D page is a static page at `/api/viewer/`. The app opens it with `#survey=<id>&token=<jwt>` in the URL fragment, so the token is never sent to a server. The page reads data from the same API routes shown above (`summary`, `coverage`, `access-points`, `networks`, `trail`).
+- The 3D page is a static page at `/api/viewer/`. The app opens it with `#survey=<id>&token=<jwt>` in the URL fragment, so the token is never sent to a server. The page reads data from the same API routes shown above (`summary`, `coverage`, `access-points`, `networks`, `trail`, and `routers` in router coverage mode).
 
 ## Not verified
 

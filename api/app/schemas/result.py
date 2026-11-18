@@ -145,3 +145,110 @@ class TrailRead(BaseModel):
     start: TrailPoint | None
     end: TrailPoint | None
     floors: list[TrailFloor]
+
+
+class CellGridOut(BaseModel):
+    """A grid in the same layout as ``CoverageRead``: row-major, south row and
+    west column first, ``null`` where there is no data. ``origin_lat`` and
+    ``origin_lng`` are the south-west corner; ``north_lat`` and ``east_lng``
+    the north-east corner."""
+
+    origin_lat: float
+    origin_lng: float
+    north_lat: float
+    east_lng: float
+    cell_size_m: float
+    cols: int
+    rows: int
+    values: list[float | None]
+
+
+class RouterNetworkOut(BaseModel):
+    """One BSSID of a router, with the network name it broadcasts."""
+
+    bssid: str
+    ssid: str
+    frequency_mhz: int
+    reading_count: int
+    max_rssi_dbm: int
+
+
+class RouterOut(BaseModel):
+    """One router on one floor (FR-27, FR-28).
+
+    ``number`` is the same on every floor of the survey (1 = the strongest).
+    ``lat`` and ``lng`` are its estimated position when it is placed on this
+    floor, else null; ``confidence`` and ``low_confidence`` come from that
+    estimate. ``footprint`` is the strongest value of its BSSIDs per cell;
+    ``area_m2`` counts cells at or above the dead threshold, ``good_area_m2``
+    those at or above the good one."""
+
+    router_id: str
+    number: int
+    label: str
+    ssids: list[str]
+    networks: list[RouterNetworkOut]
+    max_rssi_dbm: int
+    lat: float | None = None
+    lng: float | None = None
+    confidence: float | None = None
+    low_confidence: bool | None = None
+    area_m2: float
+    good_area_m2: float
+    footprint: CellGridOut
+
+
+class RouterLinkOut(BaseModel):
+    """A straight link between two routers of a chain. ``status`` is ``dead``
+    when part of it is below the dead threshold, ``weak`` when part is below
+    the good one, ``no_data`` when nothing on it was measured, else
+    ``covered``. The meters add up to about ``length_m``."""
+
+    from_router: str
+    to_router: str
+    length_m: float
+    min_rssi_dbm: float | None
+    weak_m: float
+    dead_m: float
+    no_data_m: float
+    status: Literal["covered", "weak", "dead", "no_data"]
+
+
+class RouterChainOut(BaseModel):
+    """Routers on one floor that broadcast the same network name (FR-29).
+
+    ``gaps`` holds the chain's best signal only on the weak and dead cells
+    along its links; null when there is none (or fewer than two routers are
+    placed on the floor)."""
+
+    ssids: list[str]
+    router_ids: list[str]
+    links: list[RouterLinkOut]
+    weak_cells: int
+    dead_cells: int
+    gap_area_m2: float
+    gaps: CellGridOut | None
+
+
+class RouterFloorOut(BaseModel):
+    floor_id: uuid.UUID
+    floor_level: int
+    floor_label: str
+    router_count: int
+    routers: list[RouterOut]
+    chains: list[RouterChainOut]
+
+
+class RouterCoverageRead(BaseModel):
+    """Router coverage mode of a processed survey (FR-27 to FR-29).
+
+    ``router_count`` counts routers in the whole survey and ``bssid_count``
+    the BSSIDs they were grouped from; ``grouping`` says how."""
+
+    survey_id: uuid.UUID
+    thresholds: Thresholds
+    router_count: int
+    bssid_count: int
+    grouping: str
+    gap_corridor_m: float
+    floors: list[RouterFloorOut]

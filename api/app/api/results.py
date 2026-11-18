@@ -24,6 +24,7 @@ from app.schemas.result import (
     CoverageRead,
     NetworkRead,
     ProcessResult,
+    RouterCoverageRead,
     SurveySummary,
     TrailRead,
 )
@@ -36,6 +37,7 @@ from app.services.results import (
     run_processing,
     stored_summary,
 )
+from app.services.router_coverage import router_coverage
 from app.services.surveys import get_survey_or_404
 from app.services.trail import trail_read
 
@@ -170,6 +172,22 @@ def list_access_points(
         for ap in result["items"]
     ]
     return result
+
+
+@router.get("/{survey_id}/routers", response_model=RouterCoverageRead)
+def get_router_coverage(
+    survey_id: uuid.UUID,
+    floor_id: Annotated[uuid.UUID | None, Query(description="Only this floor")] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RouterCoverageRead:
+    """Router coverage mode (FR-27 to FR-29), separate from the strongest-signal
+    heatmap. Per floor: each router (BSSIDs of one radio grouped) with the
+    network names it broadcasts, its coverage footprint and estimated position,
+    and the chains of routers that share a network name, with the weak and dead
+    gaps along the links between them. Needs a processed survey."""
+    survey = get_survey_or_404(db, user, survey_id)
+    return router_coverage(db, survey, floor_id)
 
 
 @router.get("/{survey_id}/summary", response_model=SurveySummary)

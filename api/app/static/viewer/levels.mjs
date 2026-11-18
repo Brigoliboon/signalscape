@@ -254,3 +254,81 @@ export function legendStartsOpen(stored, widthPx) {
   if (stored === '0') return false;
   return widthPx > NARROW_MAX_PX;
 }
+
+// Router coverage mode (FR-27 to FR-29). The app draws the same mode in
+// app/lib/core/router_data.dart; keep the palette, opacities and texts in step.
+// Router identity colours are blues and purples, never the green, amber or red of
+// signal levels, which stay for the weak and dead gaps between routers, and not
+// the violet of the walked path.
+export const ROUTER_PALETTE = Object.freeze([
+  '#1d4ed8',
+  '#c026d3',
+  '#0891b2',
+  '#4f46e5',
+  '#0284c7',
+  '#475569',
+  '#1e3a8a',
+  '#6b21a8',
+]);
+export const FOOTPRINT_GOOD_ALPHA = 0.45;
+export const FOOTPRINT_FAIR_ALPHA = 0.22;
+export const FOOTPRINT_PIXELS_PER_CELL = 4;
+export const LINK_COLORS = Object.freeze({
+  dead: LEVEL_COLORS.dead,
+  weak: LEVEL_COLORS.fair,
+  covered: '#ffffff',
+  no_data: '#9ca3af',
+});
+
+/** The colour of router number n (1 = the first). */
+export function routerColor(number) {
+  const n = Math.max(1, Number(number) || 1);
+  return ROUTER_PALETTE[(n - 1) % ROUTER_PALETTE.length];
+}
+
+/**
+ * RGBA pixels of one router's footprint (row 0 = north): good cells at
+ * FOOTPRINT_GOOD_ALPHA, fair ones at FOOTPRINT_FAIR_ALPHA, dead and empty clear.
+ */
+export function footprintPixels(values, cols, rows, thresholds, color, scale = FOOTPRINT_PIXELS_PER_CELL) {
+  const width = cols * scale;
+  const height = rows * scale;
+  const out = new Uint8ClampedArray(width * height * 4);
+  const rgb = hexToRgb(color);
+  const goodA = Math.round(FOOTPRINT_GOOD_ALPHA * 255);
+  const fairA = Math.round(FOOTPRINT_FAIR_ALPHA * 255);
+  for (let py = 0; py < height; py += 1) {
+    const row = rows - 1 - Math.floor(py / scale);
+    for (let px = 0; px < width; px += 1) {
+      const value = values[row * cols + Math.floor(px / scale)];
+      if (value === null || value === undefined) continue;
+      const level = levelFor(value, thresholds.good_dbm, thresholds.dead_dbm);
+      if (level === 'dead') continue;
+      const i = (py * width + px) * 4;
+      out[i] = rgb[0];
+      out[i + 1] = rgb[1];
+      out[i + 2] = rgb[2];
+      out[i + 3] = level === 'good' ? goodA : fairA;
+    }
+  }
+  return { width, height, data: out };
+}
+
+/** "Router 1: guest, staff" for the router list. */
+export function routerTitle(router) {
+  const names = (router.ssids || []).map((s) => (s ? s : '(hidden network)'));
+  return `${router.label}: ${names.length ? names.join(', ') : '(hidden network)'}`;
+}
+
+/** What a link between two routers of a chain says about the gap (FR-29). */
+export function linkText(link, fromLabel, toLabel) {
+  const head = `${fromLabel} → ${toLabel} · ${Math.round(link.length_m)} m`;
+  const weakest =
+    link.min_rssi_dbm === null || link.min_rssi_dbm === undefined
+      ? ''
+      : ` (weakest ${Math.round(link.min_rssi_dbm)} dBm)`;
+  if (link.status === 'dead') return `${head} · dead gap ${Math.round(link.dead_m)} m${weakest}`;
+  if (link.status === 'weak') return `${head} · weak gap ${Math.round(link.weak_m)} m${weakest}`;
+  if (link.status === 'covered') return `${head} · covered all the way${weakest}`;
+  return `${head} · not walked, no data`;
+}

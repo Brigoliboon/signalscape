@@ -442,6 +442,11 @@ class ApiClient {
   Future<Map<String, dynamic>> surveyTrail(String surveyId) async =>
       await _send('GET', '/surveys/$surveyId/trail') as Map<String, dynamic>;
 
+  /// Router coverage mode of a processed survey (FR-27 to FR-29); 409 until
+  /// it is processed.
+  Future<Map<String, dynamic>> surveyRouters(String surveyId) async =>
+      await _send('GET', '/surveys/$surveyId/routers') as Map<String, dynamic>;
+
   /// Floor names and counts of a processed survey; 409 until it is processed.
   Future<Map<String, dynamic>> surveySummary(String surveyId) async =>
       await _send('GET', '/surveys/$surveyId/summary') as Map<String, dynamic>;
