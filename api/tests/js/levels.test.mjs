@@ -6,6 +6,10 @@ import {
   CONFIDENCE_NOTE,
   apConfidenceText,
   isLowConfidence,
+  ZONE_ALPHA,
+  ZONE_HATCH_ALPHA,
+  zoneLegendEntries,
+  zonePixels,
   LEVEL_COLORS,
   MIN_CONFIDENCE_SHARE,
   cellAt,
@@ -173,4 +177,51 @@ test('access point confidence text and flag (FR-24, FR-25)', () => {
   const old = { reading_count: 1, confidence: null, low_confidence: null, spread_m: null };
   assert.equal(isLowConfidence(old), true);
   assert.equal(apConfidenceText(old), 'Low confidence: 1 reading · not rated, process the survey again');
+});
+
+test('zone layer legend ranges follow the thresholds (FR-26)', () => {
+  assert.deepEqual(
+    zoneLegendEntries({ good_dbm: -60, dead_dbm: -75 }).map((e) => e.text),
+    ['Weak: -75 to -60 dBm', 'Dead: below -75 dBm'],
+  );
+  assert.deepEqual(
+    zoneLegendEntries({ good_dbm: -67, dead_dbm: -80 }).map((e) => e.text),
+    ['Weak: -80 to -67 dBm', 'Dead: below -80 dBm'],
+  );
+});
+
+test('zone pixels: weak amber, dead red and hatched, good and empty clear', () => {
+  const t = { good_dbm: -60, dead_dbm: -75 };
+  const scale = 8;
+  // one row: good, weak, dead, no data
+  const p = zonePixels([-50, -70, -90, null], 4, 1, t, scale);
+  assert.equal(p.width, 32);
+  assert.equal(p.height, 8);
+  const alpha = (px, py) => p.data[(py * p.width + px) * 4 + 3];
+  const rgb = (px, py) => Array.from(p.data.slice((py * p.width + px) * 4, (py * p.width + px) * 4 + 3));
+  const fill = Math.round(ZONE_ALPHA * 255);
+  const hatch = Math.round(ZONE_HATCH_ALPHA * 255);
+  assert.equal(alpha(3, 3), 0); // good
+  assert.equal(alpha(27, 3), 0); // no data
+  assert.deepEqual(rgb(11, 3), hexToRgb(LEVEL_COLORS.fair));
+  const weak = new Set();
+  const dead = new Set();
+  for (let px = 0; px < 8; px += 1) {
+    weak.add(alpha(8 + px, 0));
+    dead.add(alpha(16 + px, 0));
+  }
+  assert.deepEqual([...weak], [fill]);
+  assert.deepEqual([...dead].sort(), [fill, hatch].sort());
+  assert.deepEqual(rgb(19, 3), hexToRgb(LEVEL_COLORS.dead));
+  // looser thresholds: -70 is good and -90 only weak
+  const loose = zonePixels([-50, -70, -90, null], 4, 1, { good_dbm: -72, dead_dbm: -95 }, scale);
+  assert.equal(loose.data[(3 * 32 + 11) * 4 + 3], 0);
+  assert.deepEqual(Array.from(loose.data.slice((3 * 32 + 19) * 4, (3 * 32 + 19) * 4 + 3)), hexToRgb(LEVEL_COLORS.fair));
+});
+
+test('zone pixels: row 0 of the picture is the north row', () => {
+  // two rows: south dead, north good
+  const p = zonePixels([-90, -50], 1, 2, { good_dbm: -60, dead_dbm: -75 }, 4);
+  assert.equal(p.data[(1 * 4 + 1) * 4 + 3], 0); // top (north) is clear
+  assert.ok(p.data[(5 * 4 + 1) * 4 + 3] > 0); // bottom (south) is shaded
 });

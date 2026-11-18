@@ -78,6 +78,7 @@ button {
 }
 
 .chip.primary { color: #fff; background: var(--primary); border-color: var(--primary); }
+.chip[aria-pressed="true"] { background: #e0e7ff; border-color: var(--primary); }
 .chip.quiet { min-height: 40px; font-weight: 500; }
 .chip[aria-expanded="true"]:not(.primary) { background: #e0e7ff; border-color: var(--primary); }
 .chip canvas { display: block; width: 48px; height: 12px; border: 1px solid rgba(0, 0, 0, 0.35); border-radius: 2px; }
@@ -113,6 +114,14 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   height: 16px;
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+/* Zone layer (FR-26): weak amber, dead red with a hatch, both at 35%. */
+.swatch.zone-weak { background: rgba(242, 169, 0, 0.35); }
+.swatch.zone-dead {
+  background:
+    repeating-linear-gradient(-45deg, rgba(215, 48, 39, 0.85) 0 2px, transparent 2px 5px),
+    rgba(215, 48, 39, 0.35);
 }
 
 .swatch.none { visibility: hidden; width: 0; margin-right: -8px; }

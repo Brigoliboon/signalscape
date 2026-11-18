@@ -17,7 +17,6 @@ import {
   LEVEL_COLORS,
   LEVEL_NAMES,
   NARROW_MAX_PX,
-  cellLevels,
   dataExtent,
   fadedColor,
   floorElevation,
@@ -27,6 +26,9 @@ import {
   legendEntries,
   legendStartsOpen,
   levelFor,
+  ZONE_PIXELS_PER_CELL,
+  zoneLegendEntries,
+  zonePixels,
   networkLabel,
   parseFragment,
   toLocal,
@@ -76,7 +78,8 @@ const els = {
   floorList: $('floor-list'),
   showAps: $('show-aps'),
   showTrail: $('show-trail'),
-  showDead: $('show-dead'),
+  zonesToggle: $('zones-toggle'),
+  showHeat: $('show-heat'),
   opacity: $('heat-opacity'),
   opacityText: $('heat-opacity-text'),
   minRssi: $('heat-min-rssi'),
@@ -99,6 +102,9 @@ const state = {
   // How the heatmap is drawn. Opacity only changes the material; the minimum signal
   // and the contour lines redraw the picture.
   heat: { opacity: 0.85, minRssi: RAMP_WEAK_DBM, contours: true },
+  // The dead and weak zone layer (FR-26). On by default, as the v1.0 dead-zone
+  // blocks were.
+  zones: true,
 };
 
 let renderer = null;
@@ -336,13 +342,13 @@ function addFootprint(floor) {
   floor.slab = mesh;
 }
 
-/** Rebuild everything drawn for one floor: footprint, heatmap, dead zones, markers. */
+/** Rebuild everything drawn for one floor: footprint, heatmap, zones, markers. */
 function buildFloor(floor) {
   disposeGroup(floor.group);
   floor.heat = null;
   floor.field = null;
   floor.slab = null;
-  floor.deadMesh = null;
+  floor.zoneMesh = null;
   floor.apMeshes = [];
   floor.trailMeshes = [];
   floor.group.position.y = floorElevation(floor.info.floor_level, floor.info.floor_height_m);
@@ -428,7 +434,6 @@ function refreshHeat() {
 
 function addHeatmap(floor, grid) {
   const layout = gridLayout(grid);
-  const levels = cellLevels(grid.values, state.thresholds);
   // The picture has a blank cell all around, so it is a little larger than the grid.
   const pad = PAD_CELLS * layout.cell;
   const heat = new THREE.Mesh(
@@ -447,33 +452,37 @@ function addHeatmap(floor, grid) {
   floor.group.add(heat);
   floor.heat = heat;
 
-  const dead = [];
-  levels.forEach((level, index) => {
-    if (level === 'dead') dead.push(index);
-  });
-  if (dead.length > 0) {
-    const mesh = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(layout.cell * 0.9, 1, layout.cell * 0.9),
-      new THREE.MeshLambertMaterial({ color: LEVEL_COLORS.dead, transparent: true, opacity: 0.6 }),
-      dead.length,
-    );
-    const matrix = new THREE.Matrix4();
-    const rise = Math.max(0.6, layout.cell * 0.8);
-    dead.forEach((index, i) => {
-      const col = index % grid.cols;
-      const row = Math.floor(index / grid.cols);
-      matrix.makeScale(1, rise, 1);
-      matrix.setPosition(
-        layout.west + (col + 0.5) * layout.cell,
-        rise / 2,
-        -(layout.south + (row + 0.5) * layout.cell),
-      );
-      mesh.setMatrixAt(i, matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    floor.group.add(mesh);
-    floor.deadMesh = mesh;
-  }
+  addZones(floor, grid, layout);
+}
+
+/**
+ * The dead and weak zone layer (FR-26): weak cells amber, dead cells red and
+ * hatched, at 35%, as a flat picture just above the heatmap. It can be shown with
+ * the heatmap or instead of it.
+ */
+function addZones(floor, grid, layout) {
+  const longest = Math.max(grid.cols, grid.rows);
+  const scale = Math.max(1, Math.min(ZONE_PIXELS_PER_CELL, Math.floor(2048 / longest)));
+  const pixels = zonePixels(grid.values, grid.cols, grid.rows, state.thresholds, scale);
+  if (!pixels.data.some((v, i) => i % 4 === 3 && v > 0)) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
+  canvas.getContext('2d').putImageData(new ImageData(pixels.data, pixels.width, pixels.height), 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(layout.width, layout.depth),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(layout.centerX, 0.08, layout.centerZ);
+  mesh.renderOrder = 1;
+  floor.group.add(mesh);
+  floor.zoneMesh = mesh;
 }
 
 function addAccessPoints(floor, unit) {
@@ -593,7 +602,8 @@ function trailPointsOf(floor) {
 function applyVisibility(floor) {
   for (const object of floor.trailMeshes || []) object.visible = els.showTrail.checked;
   floor.group.visible = floor.visible;
-  if (floor.deadMesh) floor.deadMesh.visible = els.showDead.checked;
+  if (floor.zoneMesh) floor.zoneMesh.visible = state.zones;
+  if (floor.heat) floor.heat.visible = els.showHeat.checked;
   for (const item of floor.apMeshes) {
     item.marker.visible = els.showAps.checked && (!state.bssid || item.ap.bssid === state.bssid);
   }
@@ -730,12 +740,14 @@ function buildRampBar() {
 function buildLegend() {
   buildRampBar();
   els.legend.replaceChildren();
-  // The map is a continuous ramp now; the thresholds stay as text, and only the dead
-  // zone keeps a swatch because it is still marked with red blocks.
-  const rows = legendEntries(state.thresholds).map((entry) => ({
-    text: entry.text,
-    color: entry.level === 'dead' ? entry.color : null,
-  }));
+  // The map is a continuous ramp; the thresholds stay as text. With the zone layer
+  // on, its weak and dead shading get swatches with their ranges (FR-26).
+  const rows = legendEntries(state.thresholds).map((entry) => ({ text: entry.text, color: null }));
+  if (state.zones) {
+    for (const entry of zoneLegendEntries(state.thresholds)) {
+      rows.push({ text: entry.text, color: null, zone: entry.level });
+    }
+  }
   rows.push({ text: `Lines: every ${DEFAULT_CONTOUR_STEP_DB} dBm`, color: null });
   rows.push({ text: CONFIDENCE_NOTE, color: fadedColor(LEVEL_COLORS.fair) });
   rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: 'solid' });
@@ -749,7 +761,8 @@ function buildLegend() {
     const item = document.createElement('li');
     const swatch = document.createElement('span');
     swatch.className = row.ap ? `swatch ap${row.ap === 'low' ? ' low' : ''}` : 'swatch';
-    if (row.color) swatch.style.background = row.color;
+    if (row.zone) swatch.classList.add(row.zone === 'dead' ? 'zone-dead' : 'zone-weak');
+    else if (row.color) swatch.style.background = row.color;
     else if (!row.ap) swatch.classList.add('none');
     swatch.setAttribute('aria-hidden', 'true');
     const text = document.createElement('span');
@@ -832,7 +845,15 @@ async function changeNetwork() {
 els.network.addEventListener('change', changeNetwork);
 els.showAps.addEventListener('change', applyAllVisibility);
 els.showTrail.addEventListener('change', applyAllVisibility);
-els.showDead.addEventListener('change', applyAllVisibility);
+els.showHeat.addEventListener('change', applyAllVisibility);
+
+function setZones(on) {
+  state.zones = on;
+  els.zonesToggle.setAttribute('aria-pressed', String(on));
+  if (state.thresholds) buildLegend();
+  applyAllVisibility();
+}
+els.zonesToggle.addEventListener('click', () => setZones(!state.zones));
 
 function showHeatSettings() {
   els.opacityText.textContent = `${state.heat.opacity * 100}%`;

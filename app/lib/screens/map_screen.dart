@@ -8,6 +8,7 @@ import '../core/heatmap.dart';
 import '../core/levels.dart';
 import '../core/map_data.dart';
 import '../core/map_tiles.dart';
+import '../core/zones.dart';
 import '../data/api_client.dart';
 import '../theme.dart';
 import '../widgets/view_switch.dart';
@@ -88,6 +89,10 @@ class _MapScreenState extends State<MapScreen> {
   bool _showCells = true;
   bool _showAps = true;
   bool _showTrail = true;
+
+  /// The dead and weak zone layer (FR-26), on top of or instead of the heatmap.
+  bool _showZones = false;
+  final Map<String, HeatImage?> _zoneCache = {};
 
   // How the heatmap is drawn. The opacity is set on the overlay and redraws
   // nothing; the minimum signal and the contour lines make a new picture.
@@ -304,11 +309,25 @@ class _MapScreenState extends State<MapScreen> {
         : null;
   }
 
+  Thresholds get _thresholds => _data?.thresholds ?? const Thresholds();
+
+  /// The zone picture of [floor] with the thresholds in force, made once per
+  /// floor, network, grid read and thresholds.
+  HeatImage? _zonesImageFor(FloorLayer floor) {
+    final heat = floor.heat;
+    if (heat == null) return null;
+    final t = _thresholds;
+    final key =
+        '$_epoch|${floor.level}|${_bssid ?? ''}|${t.goodDbm}|${t.deadDbm}';
+    _zoneCache.removeWhere((k, _) => !k.startsWith('$_epoch|'));
+    return _zoneCache.putIfAbsent(key, () => renderZonesPng(heat.grid, t));
+  }
+
   /// A tap on the map: the value of the nearest cell of the floor on show.
   void _tapMap(LatLng at) {
     final floor = _floor;
     final heat = floor?.heat;
-    if (!_showCells || heat == null) return;
+    if ((!_showCells && !_showZones) || heat == null) return;
     final cell = heat.nearestCell(at);
     final value = cell.value;
     final t = _data?.thresholds ?? const Thresholds();
@@ -485,6 +504,21 @@ class _MapScreenState extends State<MapScreen> {
                     opacity: _opacity,
                     gaplessPlayback: true,
                     filterQuality: FilterQuality.medium,
+                  ),
+                ],
+              ),
+            if (_showZones && _zonesImageFor(floor) != null)
+              OverlayImageLayer(
+                key: ValueKey('zones-${floor.level}'),
+                overlayImages: [
+                  OverlayImage(
+                    bounds: LatLngBounds(
+                      floor.heat!.pictureSouthWest,
+                      floor.heat!.pictureNorthEast,
+                    ),
+                    imageProvider: MemoryImage(_zonesImageFor(floor)!.png),
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.none,
                   ),
                 ],
               ),
@@ -668,13 +702,20 @@ class _MapScreenState extends State<MapScreen> {
                         onSelected: (_) => _pickFloor(f.level),
                       ),
                     ),
+                  _zonesChip(),
                 ],
               ),
             )
           else
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Chip(label: Text(floor.label)),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Chip(label: Text(floor.label)),
+                  const SizedBox(width: 8),
+                  _zonesChip(),
+                ],
+              ),
             ),
           const SizedBox(height: 6),
           Row(
@@ -709,6 +750,15 @@ class _MapScreenState extends State<MapScreen> {
       ),
     );
   }
+
+  /// Next to the floor filter: the dead and weak zone layer (FR-26).
+  Widget _zonesChip() => FilterChip(
+    key: const ValueKey('layer-zones'),
+    avatar: const Icon(Icons.signal_wifi_bad, size: 18),
+    label: const Text('Dead & weak zones'),
+    selected: _showZones,
+    onSelected: (v) => setState(() => _showZones = v),
+  );
 
   /// The bottom card: which layers are drawn.
   Widget _toolbar() {
@@ -1032,6 +1082,34 @@ class _MapScreenState extends State<MapScreen> {
                     'Lines every $defaultContourStepDb dBm',
                     style: const TextStyle(fontSize: 12),
                   ),
+                  if (_showZones) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const ZoneSwatch(dead: false),
+                        const SizedBox(width: 8),
+                        Text(
+                          weakZoneText(_thresholds),
+                          key: const ValueKey('legend-zone-weak'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const ZoneSwatch(dead: true),
+                        const SizedBox(width: 8),
+                        Text(
+                          deadZoneText(_thresholds),
+                          key: const ValueKey('legend-zone-dead'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1187,3 +1265,46 @@ final List<BoxShadow> _apShadow = [
     spreadRadius: 1,
   ),
 ];
+
+/// A legend swatch of the zone layer: amber for weak, hatched red for dead.
+class ZoneSwatch extends StatelessWidget {
+  const ZoneSwatch({super.key, required this.dead});
+
+  final bool dead;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    key: ValueKey(dead ? 'zone-swatch-dead' : 'zone-swatch-weak'),
+    size: const Size(12, 12),
+    painter: _ZoneSwatchPainter(dead),
+  );
+}
+
+class _ZoneSwatchPainter extends CustomPainter {
+  const _ZoneSwatchPainter(this.dead);
+
+  final bool dead;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rgb = dead ? zoneDeadRgb : zoneWeakRgb;
+    final color = Color(0xFF000000 | rgb);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = color.withValues(alpha: zoneAlpha),
+    );
+    if (!dead) return;
+    final line = Paint()
+      ..color = color.withValues(alpha: zoneHatchAlpha)
+      ..strokeWidth = 1.5;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (var x = -size.height; x < size.width; x += 4) {
+      canvas.drawLine(Offset(x, size.height), Offset(x + size.height, 0), line);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ZoneSwatchPainter old) => old.dead != dead;
+}

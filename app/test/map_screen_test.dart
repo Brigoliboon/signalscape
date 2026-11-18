@@ -318,6 +318,37 @@ void main() {
     );
   });
 
+  testWidgets('the dead and weak zone layer can be switched on (FR-26)', (
+    tester,
+  ) async {
+    await pump(tester, goodRoutes());
+    expect(find.byKey(const ValueKey('zones-0')), findsNothing);
+    final chip = find.byKey(const ValueKey('layer-zones'));
+    expect(find.text('Dead & weak zones'), findsOneWidget);
+    expect(tester.getSize(chip).height, greaterThanOrEqualTo(kTarget));
+    await tester.ensureVisible(chip);
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('zones-0')), findsOneWidget);
+    // Shown together with the heatmap, or instead of it.
+    expect(find.byKey(const ValueKey('heat-0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('layer-cells')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('heat-0')), findsNothing);
+    expect(find.byKey(const ValueKey('zones-0')), findsOneWidget);
+    // The legend gives both ranges from the survey's thresholds (-60 / -75).
+    await tester.tap(find.byKey(const ValueKey('legend-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Weak: -75 to -60 dBm'), findsOneWidget);
+    expect(find.text('Dead: below -75 dBm'), findsOneWidget);
+    expect(find.byKey(const ValueKey('zone-swatch-dead')), findsOneWidget);
+    await tester.ensureVisible(chip);
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('zones-0')), findsNothing);
+    expect(find.text('Weak: -75 to -60 dBm'), findsNothing);
+  });
+
   testWidgets('the map still shows without a trail', (tester) async {
     final routes = goodRoutes();
     routes.remove('GET /api/surveys/s1/trail');

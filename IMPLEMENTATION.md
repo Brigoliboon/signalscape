@@ -113,8 +113,8 @@ First slice, with M10. This is the estimated access point markers, not the walk 
 
 First slice, with M9.
 
-- [ ] Plot dead and weak (fair) areas as their own visible layer on the 2D map and in the 3D viewer (FR-26). Use the existing FR-15 classification and configurable thresholds.
-- [ ] The layer can be shown together with, or instead of, the coverage heatmap, so DTO can see the zones without only reading summary percentages.
+- [x] Plot dead and weak (fair) areas as their own visible layer on the 2D map and in the 3D viewer (FR-26). Use the existing FR-15 classification and configurable thresholds.
+- [x] The layer can be shown together with, or instead of, the coverage heatmap, so DTO can see the zones without only reading summary percentages.
 
 ## M11: Router coverage mode (FR-27, FR-28, FR-29)
 
@@ -161,6 +161,7 @@ After the 19 Nov slice.
 ---
 
 ## Progress log
+- 2026-11-18 13:12: M10 dead and weak zone layer (branch `feat/dead-weak-layer`, builds on `docs/v1.1-plan`). A "Dead & weak zones" toggle chip next to the floor filter on the 2D map and next to the Network and Floors filters in the 3D viewer's Layers sheet. Weak (fair) cells are shaded amber and dead cells red at 35%, with a diagonal hatch on dead ones, classified from the existing grid with the survey's FR-15 thresholds; no API change. The legend shows both ranges from those thresholds (for example "Weak: -80 to -67 dBm", "Dead: below -80 dBm"). The layer shows with or instead of the heatmap (the 2D Coverage chip, and a new Coverage heatmap switch in 3D). In 3D it replaces the v1.0 red dead-zone blocks and is on by default; on the 2D map it starts off. New `app/lib/core/zones.dart` and `zonePixels` in `levels.mjs`, with unit and widget tests.
 - 2026-11-18 12:43: M9 access point placement (branch `feat/ap-placement`, builds on `docs/v1.1-plan`). `estimate_access_points()` now fits a log-distance path-loss model (position, P0 and n by weighted Levenberg-Marquardt with weak priors at -40 dBm and 3.0, clamped to -60..-20 dBm and 2..4, multi-start from the weighted centroid, at most 25 m from it) and stores method `path_loss_lsq`; fewer than 3 readings or a failed fit fall back to `weighted_centroid`. A straight-line walk keeps the point on its line. Confident needs 5 or more readings and 3 m or more of spread (2 x RMS distance from the mean position; `AP_MIN_READINGS`, `AP_MIN_SPREAD_M`); otherwise `low_confidence`. New nullable columns `confidence`, `low_confidence`, `spread_m` (migration 0007) in the API, GeoJSON and the app. Markers: solid blue #1D4ED8 when confident, a hollow 40% ring with a "?" badge when not, on the 2D map and in the 3D viewer, with confidence, readings and spread on tap. Unit tests for a router outside the walked square, a tight cluster and too few readings. The test-walk follow-up stays open.
 - 2026-11-18 12:20: Merged the approved v1.1 plan into the repo (branch `docs/v1.1-plan`): Part 2 of `REQUIREMENTS.md` (FR-23 to FR-37, NFR-5 to NFR-7) and milestones M9 to M15 here. FR-14 is marked as replaced by FR-23. Nothing ticked.
 - 2026-11-18: Boon approved the v1.1 plan (DTO extension). First slice M9 and M10 due 19 Nov 2026; M11 to M15 after; no assignments table; DTO uses the Admin role; campus map includes outdoor areas with GPS; analysis is a plotted dead and weak layer plus an exportable AI report; router coverage is a separate per-router mode; dashboard at `signalscape.boonbrigoli.site`.
