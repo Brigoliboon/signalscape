@@ -54,6 +54,11 @@
         </fieldset>
 
         <fieldset class="card">
+          <legend>Zones</legend>
+          <button id="zones-toggle" class="chip" type="button" aria-pressed="true">Dead &amp; weak zones</button>
+        </fieldset>
+
+        <fieldset class="card">
           <legend>Heatmap</legend>
           <label class="slider" for="heat-opacity">
             <span>Opacity <output id="heat-opacity-text" for="heat-opacity"></output></span>
@@ -63,6 +68,7 @@
             <span>Min RSSI <output id="heat-min-rssi-text" for="heat-min-rssi"></output></span>
             <input id="heat-min-rssi" type="range" min="-100" max="-30" step="1" value="-100">
           </label>
+          <label class="check"><input id="show-heat" type="checkbox" checked> Coverage heatmap</label>
           <label class="check"><input id="heat-contours" type="checkbox" checked> Contour lines</label>
         </fieldset>
 
@@ -70,7 +76,6 @@
           <legend>Markers</legend>
           <label class="check"><input id="show-aps" type="checkbox" checked> Estimated access points</label>
           <label class="check"><input id="show-trail" type="checkbox" checked> Walked path, start and end</label>
-          <label class="check"><input id="show-dead" type="checkbox" checked> Highlight dead zones</label>
         </fieldset>
       </div>
     </section>

@@ -39,6 +39,54 @@ export function legendEntries(thresholds) {
   ];
 }
 
+// The dead and weak zone layer (FR-26). The app draws the same layer in
+// app/lib/core/zones.dart; keep the opacity and the hatch in step with it.
+export const ZONE_ALPHA = 0.35;
+export const ZONE_HATCH_ALPHA = 0.85;
+export const ZONE_HATCH_PERIOD = 6;
+export const ZONE_HATCH_WIDTH = 2;
+export const ZONE_PIXELS_PER_CELL = 8;
+
+/** Legend rows of the zone layer, with the ranges from the thresholds in force. */
+export function zoneLegendEntries(thresholds) {
+  return [
+    { level: 'fair', color: LEVEL_COLORS.fair, text: `Weak: ${thresholds.dead_dbm} to ${thresholds.good_dbm} dBm` },
+    { level: 'dead', color: LEVEL_COLORS.dead, text: `Dead: below ${thresholds.dead_dbm} dBm` },
+  ];
+}
+
+/**
+ * RGBA pixels of the zone layer for a grid (row 0 of the picture = the north row,
+ * as a canvas wants it): weak cells amber, dead cells red with a diagonal hatch,
+ * good and empty cells clear. `scale` pixels per cell.
+ */
+export function zonePixels(values, cols, rows, thresholds, scale = ZONE_PIXELS_PER_CELL) {
+  const width = cols * scale;
+  const height = rows * scale;
+  const out = new Uint8ClampedArray(width * height * 4);
+  const fair = hexToRgb(LEVEL_COLORS.fair);
+  const dead = hexToRgb(LEVEL_COLORS.dead);
+  const fillA = Math.round(ZONE_ALPHA * 255);
+  const hatchA = Math.round(ZONE_HATCH_ALPHA * 255);
+  for (let py = 0; py < height; py += 1) {
+    const row = rows - 1 - Math.floor(py / scale); // south = 0
+    for (let px = 0; px < width; px += 1) {
+      const value = values[row * cols + Math.floor(px / scale)];
+      if (value === null || value === undefined) continue;
+      const level = levelFor(value, thresholds.good_dbm, thresholds.dead_dbm);
+      if (level === 'good') continue;
+      const isDead = level === 'dead';
+      const rgb = isDead ? dead : fair;
+      const i = (py * width + px) * 4;
+      out[i] = rgb[0];
+      out[i + 1] = rgb[1];
+      out[i + 2] = rgb[2];
+      out[i + 3] = isDead && (px + py) % ZONE_HATCH_PERIOD < ZONE_HATCH_WIDTH ? hatchA : fillA;
+    }
+  }
+  return { width, height, data: out };
+}
+
 /** Level of every cell (null where the grid has no data). */
 export function cellLevels(values, thresholds) {
   return values.map((value) =>
