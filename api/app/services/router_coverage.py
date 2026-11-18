@@ -25,6 +25,7 @@ from app.schemas.result import (
 from app.services import processing as proc
 from app.services import routers as rt
 from app.services.results import floors_of, require_processed, thresholds_for
+from app.services.router_extended import extended_networks
 
 
 def _grid_out(grid: rt.CellGrid, survey: Survey) -> CellGridOut:
@@ -143,9 +144,9 @@ def router_coverage(
     members = {group[0]: group for group in groups}
 
     floor_out = []
+    survey_rssi: dict[str, dict[str, int]] = {}
+    floor_ssid: dict[tuple[uuid.UUID, str], dict] = {}
     for floor in sorted(floors.values(), key=lambda f: f.level):
-        if floor_id is not None and floor.id != floor_id:
-            continue
         on_floor = sorted(
             {router_of[b] for (f, b) in grids if f == floor.id},
             key=lambda r: numbers[r],
@@ -156,6 +157,7 @@ def router_coverage(
         footprints: dict[str, rt.CellGrid] = {}
         placed: dict[str, tuple[float, float]] = {}
         ssids_of: dict[str, set[str]] = {}
+        by_id: dict[str, RouterOut] = {}
         for router_id in on_floor:
             group = [b for b in members[router_id] if (floor.id, b) in grids]
             networks = sorted(
@@ -180,23 +182,23 @@ def router_coverage(
                 placed[router_id] = local(best.lat, best.lng)
             ssids = sorted({n.ssid for n in networks})
             ssids_of[router_id] = {s for s in ssids if s}
-            routers.append(
-                RouterOut(
-                    router_id=router_id,
-                    number=numbers[router_id],
-                    label=f"Router {numbers[router_id]}",
-                    ssids=ssids,
-                    networks=networks,
-                    max_rssi_dbm=max((n.max_rssi_dbm for n in networks), default=-200),
-                    lat=best.lat if best else None,
-                    lng=best.lng if best else None,
-                    confidence=best.confidence if best else None,
-                    low_confidence=best.low_confidence if best else None,
-                    area_m2=rt.footprint_area(footprint, thresholds.dead_dbm),
-                    good_area_m2=rt.footprint_area(footprint, thresholds.good_dbm),
-                    footprint=_grid_out(footprint, survey),
-                )
+            item = RouterOut(
+                router_id=router_id,
+                number=numbers[router_id],
+                label=f"Router {numbers[router_id]}",
+                ssids=ssids,
+                networks=networks,
+                max_rssi_dbm=max((n.max_rssi_dbm for n in networks), default=-200),
+                lat=best.lat if best else None,
+                lng=best.lng if best else None,
+                confidence=best.confidence if best else None,
+                low_confidence=best.low_confidence if best else None,
+                area_m2=rt.footprint_area(footprint, thresholds.dead_dbm),
+                good_area_m2=rt.footprint_area(footprint, thresholds.good_dbm),
+                footprint=_grid_out(footprint, survey),
             )
+            routers.append(item)
+            by_id[router_id] = item
 
         # Chains: routers sharing a (named) network on this floor. Names served
         # by the same routers are one chain.
@@ -243,6 +245,44 @@ def router_coverage(
                 )
             )
         chains.sort(key=lambda c: (-len(c.router_ids), c.ssids))
+        for ssid, ids in by_ssid.items():
+            bssid_grids = [
+                grids[(floor.id, b)]
+                for b in {
+                    n.bssid for r in ids for n in by_id[r].networks if n.ssid == ssid
+                }
+                if (floor.id, b) in grids
+            ]
+            members_of = []
+            for router_id in sorted(ids, key=lambda r: numbers[r]):
+                rssi = max(
+                    (
+                        n.max_rssi_dbm
+                        for n in by_id[router_id].networks
+                        if n.ssid == ssid
+                    ),
+                    default=-200,
+                )
+                survey_rssi.setdefault(ssid, {})
+                survey_rssi[ssid][router_id] = max(
+                    survey_rssi[ssid].get(router_id, -200), rssi
+                )
+                router = by_id[router_id]
+                members_of.append(
+                    {
+                        "router": router,
+                        "rssi": rssi,
+                        "placed": placed.get(router_id),
+                    }
+                )
+            floor_ssid[(floor.id, ssid)] = {
+                "floor": floor,
+                "members": members_of,
+                "grids": bssid_grids,
+            }
+
+        if floor_id is not None and floor.id != floor_id:
+            continue
         floor_out.append(
             RouterFloorOut(
                 floor_id=floor.id,
@@ -260,5 +300,9 @@ def router_coverage(
         bssid_count=len(bssids),
         grouping=rt.GROUPING_NOTE,
         gap_corridor_m=rt.GAP_CORRIDOR_M,
+        main_heuristic=rt.MAIN_HEURISTIC,
         floors=floor_out,
+        extended_networks=extended_networks(
+            survey, thresholds, numbers, survey_rssi, floor_ssid, floor_id, _grid_out
+        ),
     )

@@ -334,6 +334,44 @@ export function routerTitle(router) {
   return `${router.label}: ${names.length ? names.join(', ') : '(hidden network)'}`;
 }
 
+/** Extended networks: a named SSID served by two or more grouped routers. */
+export function extendedNetworks(data) {
+  return Array.isArray(data?.extended_networks) ? data.extended_networks : [];
+}
+
+export function networkNamed(data, ssid) {
+  return extendedNetworks(data).find((network) => network.ssid === ssid) || null;
+}
+
+export function networkFloorOf(network, floorId) {
+  if (!network) return null;
+  return (network.floors || []).find((floor) => floor.floor_id === floorId) || null;
+}
+
+/** One entry per router of the network, in number order. */
+export function uniqueNetworkRouters(network) {
+  const seen = new Set();
+  const routers = [];
+  for (const floor of network?.floors || []) {
+    for (const router of floor.routers || []) {
+      if (seen.has(router.router_id)) continue;
+      seen.add(router.router_id);
+      routers.push(router);
+    }
+  }
+  routers.sort((a, b) => (a.number || 0) - (b.number || 0));
+  return routers;
+}
+
+/**
+ * Role line for a router of an extended network. "Likely main" is an
+ * estimate: Wi-Fi scans do not say which device is the main router.
+ */
+export function routerRoleText(router) {
+  if (!isPositionDetermined(router)) return POSITION_NOT_DETERMINED;
+  return router.role === 'likely_main' ? 'Likely main (estimate)' : 'Extender';
+}
+
 /** What a link between two routers of a chain says about the gap (FR-29). */
 export function linkText(link, fromLabel, toLabel) {
   const head = `${fromLabel} → ${toLabel} · ${Math.round(link.length_m)} m`;

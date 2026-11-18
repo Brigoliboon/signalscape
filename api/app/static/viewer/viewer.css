@@ -283,3 +283,26 @@ select {
 .chains li small { display: block; color: #374151; }
 .swatch.router { border-radius: 50%; }
 .swatch.link { height: 4px; border-radius: 2px; }
+
+.network-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+#network-extended { width: 100%; }
+#router-list .router-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#router-list .router-row small { display: block; color: var(--muted); }

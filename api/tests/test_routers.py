@@ -128,3 +128,36 @@ def test_link_without_data_and_chain_without_placed_routers() -> None:
     same_place = rt.trace_chain(weak_only, {"a": (1.5, 0.5), "b": (1.5, 0.5)}, -67, -80)
     assert same_place.links[0].length_m == 0
     assert same_place.weak_cells == 1
+
+
+def test_likely_main_is_the_strongest_then_the_most_central() -> None:
+    numbers = {"a": 1, "b": 2, "c": 3, "d": 4}
+    # Unique strongest wins, even if it is not placed.
+    assert rt.likely_main({"a": -60, "b": -40, "c": -55}, numbers) == "b"
+    assert (
+        rt.likely_main(
+            {"a": -60, "b": -40, "c": -55},
+            numbers,
+            links=[("a", "c", 10.0)],
+            placed={"a", "c"},
+        )
+        == "b"
+    )
+    # A three-router line, a-b-c, all equally strong: the middle one is likely main.
+    links = [("a", "b", 10.0), ("b", "c", 10.0)]
+    placed = {"a", "b", "c"}
+    rssi = {"a": -50, "b": -50, "c": -50}
+    assert rt.likely_main(rssi, numbers, links, placed) == "b"
+    # Two as strong as each other: the placed, more central one beats an unplaced tie.
+    assert (
+        rt.likely_main(
+            {"a": -40, "b": -40, "c": -70},
+            numbers,
+            links=[("a", "c", 10.0)],
+            placed={"a", "c"},
+        )
+        == "a"
+    )
+    # Remaining ties use the lower router number.
+    assert rt.likely_main({"c": -40, "d": -40}, {"c": 3, "d": 2}) == "d"
+    assert rt.likely_main({}, numbers) is None

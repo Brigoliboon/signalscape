@@ -57,9 +57,84 @@ Map<String, dynamic> routerJson(
   'footprint': gridJson(footprint),
 };
 
+Map<String, dynamic> extendedRouterJson(
+  int number, {
+  String? id,
+  String role = 'extender',
+  double? lat = 14.6,
+  double? lng = 121.0,
+  bool determined = true,
+  bool? low = false,
+  int rssi = -40,
+}) => {
+  'router_id': id ?? 'r$number',
+  'number': number,
+  'label': 'Router $number',
+  'role': role,
+  'max_rssi_dbm': rssi,
+  'lat': determined ? lat : null,
+  'lng': determined ? lng : null,
+  'confidence': low == null ? null : 0.8,
+  'low_confidence': low,
+  'position_determined': determined,
+};
+
+Map<String, dynamic> staffNetwork({
+  List<Map<String, dynamic>>? routers,
+  List<Map<String, dynamic>>? links,
+  bool includeGaps = true,
+}) => {
+  'ssid': 'staff',
+  'router_ids': ['r1', 'r2'],
+  'router_count': 2,
+  'likely_main': 'r1',
+  'floors': [
+    {
+      'floor_id': 'f0',
+      'floor_level': 0,
+      'floor_label': 'Ground',
+      'likely_main': 'r1',
+      'routers':
+          routers ??
+          [
+            extendedRouterJson(1, role: 'likely_main', rssi: -35),
+            extendedRouterJson(
+              2,
+              lat: 14.6,
+              lng: 121.0001,
+              low: true,
+              rssi: -50,
+            ),
+          ],
+      'links':
+          links ??
+          [
+            {
+              'from_router': 'r1',
+              'to_router': 'r2',
+              'length_m': 10.4,
+              'min_rssi_dbm': -91.2,
+              'weak_m': 2.0,
+              'dead_m': 4.2,
+              'no_data_m': 0.0,
+              'status': 'dead',
+            },
+          ],
+      'weak_cells': 2,
+      'dead_cells': 4,
+      'gap_area_m2': 6.0,
+      'gaps': includeGaps ? gridJson([null, -70, -90]) : null,
+      'coverage': gridJson([-50, -70, -90]),
+    },
+  ],
+};
+
 Map<String, dynamic> coverageJson({
   List<Map<String, dynamic>>? routers,
   List<Map<String, dynamic>>? chains,
+  List<Map<String, dynamic>>? extendedNetworks,
+  String heuristic =
+      'The likely main router is the one with the strongest reading of that network name.',
 }) => {
   'survey_id': 's1',
   'thresholds': {'good_dbm': -60, 'dead_dbm': -75},
@@ -67,6 +142,8 @@ Map<String, dynamic> coverageJson({
   'bssid_count': 4,
   'grouping': 'BSSIDs with the same first five bytes ...',
   'gap_corridor_m': 3.0,
+  'main_heuristic': heuristic,
+  'extended_networks': extendedNetworks ?? [staffNetwork()],
   'floors': [
     {
       'floor_id': 'f1',
@@ -141,6 +218,14 @@ void main() {
     expect(chain.routerIds, ['r1', 'r2']);
     expect(chain.links.single.status, 'dead');
     expect(chain.gaps!.grid.values, [null, -70, -90]);
+    expect(data.extendedNetworks, hasLength(1));
+    final staff = data.extendedNetworks.single;
+    expect(staff.ssid, 'staff');
+    expect(staff.likelyMain, 'r1');
+    expect(staff.floors.single.routers.first.role, RouterRole.likelyMain);
+    expect(staff.floors.single.routers.last.role, RouterRole.extender);
+    expect(staff.floors.single.coverage, isNotNull);
+    expect(data.mainHeuristic, contains('strongest reading'));
     expect(ground.routerById('r2')!.number, 2);
     expect(ground.routerById('nope'), isNull);
     expect(data.floorAt(5), isNull);
@@ -162,6 +247,27 @@ void main() {
     expect(routers[0].ssidText, '(hidden network)');
     expect(routers[0].summaryText, endsWith('not placed on this floor'));
     expect(routers[1].lowConfidence, isTrue);
+  });
+
+  test('an undetermined extended router has no pin', () {
+    final data = RouterCoverage.parse(
+      coverageJson(
+        extendedNetworks: [
+          staffNetwork(
+            routers: [
+              extendedRouterJson(1, role: 'likely_main', rssi: -35),
+              extendedRouterJson(2, determined: false, rssi: -78),
+            ],
+            links: [],
+            includeGaps: false,
+          ),
+        ],
+      ),
+    );
+    final routers = data.extendedNetworks.single.floors.single.routers;
+    expect(routers.last.positionDetermined, isFalse);
+    expect(routers.last.at, isNull);
+    expect(routers.last.positionText, 'Position not determined');
   });
 
   test('unreadable parts are skipped', () {

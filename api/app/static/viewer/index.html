@@ -52,8 +52,12 @@
         </fieldset>
 
         <fieldset id="router-set" class="card" hidden>
-          <legend>Routers</legend>
+          <legend>Extended networks</legend>
           <p id="router-count" class="note"></p>
+          <label class="network-picker">
+            <span>Network</span>
+            <select id="network-extended" aria-label="Extended network"></select>
+          </label>
           <div id="router-list"></div>
           <label class="check"><input id="show-gaps" type="checkbox" checked> Gaps between routers</label>
           <ul id="chain-list" class="chains"></ul>

@@ -21,6 +21,10 @@ extended network (one name over several routers) leave a gap".
   ``GAP_CORRIDOR_M`` of it, cells where the best signal of the whole chain is
   below the good threshold are gaps: weak below good, dead below dead. Cells
   nobody walked stay "no data" and are not called dead.
+* Extended networks. A named SSID served by two or more routers is an
+  extended network. Router mode opens on that list. One router is labelled
+  "likely main" (see :data:`MAIN_HEURISTIC`); the others are extenders.
+  Unplaced routers stay in the list and are left out of the drawn chain.
 """
 
 import math
@@ -42,6 +46,18 @@ GROUPING_NOTE = (
     "bit) and the same high nibble of the last byte are one router, unless their "
     f"estimated positions on one floor are more than {SAME_ROUTER_MAX_M:.0f} m "
     "apart."
+)
+
+ROLE_LIKELY_MAIN = "likely_main"
+ROLE_EXTENDER = "extender"
+
+MAIN_HEURISTIC = (
+    "The likely main router is the one with the strongest reading of that "
+    "network name. If two are as strong, the one closer to the middle of the "
+    "chain (the shortest total distance along the links to the other placed "
+    "routers) is chosen. Remaining ties use the lower router number. This is "
+    "an estimate: Wi-Fi scans do not say which device is the main router or "
+    "an extender."
 )
 
 
@@ -209,6 +225,66 @@ def spanning_links(
         links.append((best[1], best[2]))
         inside.add(best[2])
     return links
+
+
+def chain_centrality(
+    links: list[tuple[str, str, float]], placed: list[str]
+) -> dict[str, float]:
+    """Total length along the chain from each placed router to the others.
+
+    A smaller value is closer to the middle of the chain. A router that is not
+    on the chain (no links to it) is left out. A lone placed router is 0."""
+    if not placed:
+        return {}
+    adj: dict[str, list[tuple[str, float]]] = {n: [] for n in placed}
+    for a, b, length in links:
+        if a in adj and b in adj:
+            adj[a].append((b, length))
+            adj[b].append((a, length))
+
+    def total(start: str) -> float:
+        seen = {start: 0.0}
+        stack = [start]
+        while stack:
+            node = stack.pop()
+            for nxt, length in adj[node]:
+                if nxt in seen:
+                    continue
+                seen[nxt] = seen[node] + length
+                stack.append(nxt)
+        return sum(seen.values())
+
+    return {n: total(n) for n in placed}
+
+
+def likely_main(
+    rssi: dict[str, int],
+    numbers: dict[str, int],
+    links: list[tuple[str, str, float]] | None = None,
+    placed: set[str] | None = None,
+) -> str | None:
+    """The likely main router of one network, or None when ``rssi`` is empty.
+
+    Strongest reading of that network name first; ties go to the most central
+    placed router in the chain (see :data:`MAIN_HEURISTIC`), then the lowest
+    router number. Unplaced routers can still win if they are strictly
+    strongest, but lose a tie to a placed, more central one.
+    """
+    if not rssi:
+        return None
+    placed = placed or set()
+    centrality = chain_centrality(links or [], [r for r in rssi if r in placed])
+
+    def key(router_id: str) -> tuple:
+        centre = centrality.get(router_id, math.inf)
+        return (
+            -rssi[router_id],
+            centre,
+            numbers.get(router_id, 10**9),
+            router_id,
+        )
+
+    return min(rssi, key=key)
 
 
 def _segment_distance(

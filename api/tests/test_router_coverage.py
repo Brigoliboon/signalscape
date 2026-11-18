@@ -168,6 +168,65 @@ def test_chain_of_a_router_and_its_extender_shows_the_dead_gap(
     assert all(v < -67 for v in shown)
 
 
+def test_extended_networks_list_shared_ssids_with_a_likely_main(
+    scene: RouterScene,
+) -> None:
+    body = scene.processed().routers().json()
+    assert "likely main" in body["main_heuristic"].lower()
+    # The floors payload is unchanged for older clients.
+    assert body["floors"][0]["chains"][0]["ssids"] == ["staff"]
+    networks = body["extended_networks"]
+    assert [n["ssid"] for n in networks] == ["staff"]
+    staff = networks[0]
+    assert staff["router_ids"] == [STAFF, EXTENDER]
+    assert staff["router_count"] == 2
+    assert staff["likely_main"] == STAFF  # strongest reading of "staff"
+    assert len(staff["floors"]) == 1
+    ground = staff["floors"][0]
+    assert ground["floor_level"] == 0
+    assert ground["likely_main"] == STAFF
+    roles = {r["router_id"]: r["role"] for r in ground["routers"]}
+    assert roles == {STAFF: "likely_main", EXTENDER: "extender"}
+    assert all(r["position_determined"] for r in ground["routers"])
+    assert ground["links"]
+    assert ground["coverage"] is not None
+    assert len(ground["coverage"]["values"]) == (
+        ground["coverage"]["cols"] * ground["coverage"]["rows"]
+    )
+    # guest and lab are served by only one router, so they are not extended.
+    assert "guest" not in [n["ssid"] for n in networks]
+
+
+def test_undetermined_extender_stays_in_the_list_and_off_the_chain(
+    scene: RouterScene,
+) -> None:
+    weak = "22:33:44:55:66:70"
+    add_readings(
+        scene.db,
+        scene.survey,
+        scene.floor,
+        [
+            (8.5, 0.5, -80, weak, "staff"),
+            (9.5, 0.5, -82, weak, "staff"),
+            (10.5, 0.5, -79, weak, "staff"),
+        ],
+        start=3000,
+    )
+    staff = scene.processed().routers().json()["extended_networks"][0]
+    assert staff["ssid"] == "staff"
+    assert set(staff["router_ids"]) == {STAFF, EXTENDER, weak}
+    by_id = {r["router_id"]: r for r in staff["floors"][0]["routers"]}
+    assert by_id[weak]["position_determined"] is False
+    assert by_id[weak]["lat"] is None and by_id[weak]["lng"] is None
+    assert by_id[weak]["role"] == "extender"
+    ends = {
+        (link["from_router"], link["to_router"]) for link in staff["floors"][0]["links"]
+    }
+    assert all(weak not in pair for pair in ends)
+    assert by_id[STAFF]["position_determined"] is True
+    assert staff["likely_main"] == STAFF
+
+
 def test_routers_can_be_limited_to_one_floor(scene: RouterScene) -> None:
     scene.processed()
     body = scene.routers(f"?floor_id={scene.upper.id}").json()
