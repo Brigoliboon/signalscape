@@ -121,7 +121,7 @@ Indexes: `(survey_id, floor_id)`, `(survey_id, bssid)`, unique `(survey_id, clie
 | source | enum `tap`, `gps` | |
 | recorded_at | timestamptz | |
 
-### access_point_estimates (FR-14)
+### access_point_estimates (FR-14, FR-23 to FR-25)
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid PK | |
@@ -131,9 +131,12 @@ Indexes: `(survey_id, floor_id)`, `(survey_id, bssid)`, unique `(survey_id, clie
 | ssid | text | |
 | frequency_mhz | integer | |
 | lat, lng | double precision | estimated position |
-| method | text | e.g. `weighted_centroid` |
+| method | text | `path_loss_lsq` (v1.1), or `weighted_centroid` with fewer than 3 readings and on v1.0 results |
 | reading_count | integer | |
 | max_rssi_dbm | smallint | |
+| confidence | real, null | 0 to 1 placement confidence (v1.1; null on older rows) |
+| low_confidence | boolean, null | true below 5 readings or 3 m of spread, or when the fit failed or was clamped (FR-24) |
+| spread_m | real, null | 2 x the RMS distance of the readings from their mean |
 | computed_at | timestamptz | |
 
 ### coverage_grids (FR-13, FR-15, FR-19)
@@ -289,6 +292,8 @@ The numbered path from a walk-and-scan on the phone, through upload and the clea
 **Where each client draws it.** *3D page:* a canvas texture on a plane one cell larger than the grid on each side, with linear filtering and mipmaps; the contour lines are stroked onto the canvas. The Content-Security-Policy is unchanged. Tapping a floor reports the nearest grid cell's own value and its level (good, fair, dead) from the thresholds, not an interpolated number; a tap in the blank border finds the nearest cell. *2D map:* the GeoJSON gives one square per cell with data, so the app puts the grid back together from the squares (columns and rows come from the squares' average size, the exact cell size from the whole extent, because corners are rounded to 7 decimals). The picture is made in an isolate (`compute`), encoded as a PNG in plain Dart, and shown by flutter_map's `OverlayImageLayer` at the grid's geographic bounds plus the blank cell. Up to eight pictures are kept by floor, network and settings; changing opacity never redraws. A tap on the map shows the nearest cell's value and level. *Live preview:* the same upsampling and ramp, without contour lines, drawn under the trail and made again only when a new preview grid arrives.
 
 **Access points (FR-14):** weighted centroid of the strongest 10 readings for each BSSID, with linear-power weights `10^(rssi / 10)`, placed on the floor where its readings are strongest. A log-distance path-loss fit can replace it later without changing the API, since `method` is stored.
+
+**Access points, v1.1 (FR-23 to FR-25, replaces the centroid above):** for each BSSID, on the floor of its strongest reading, fit `rssi = P0 - 10 n log10(d)` with `d` the 3D distance (the access point 1 m above the phone) by weighted Levenberg-Marquardt over position, `P0` and `n`. Up to the 200 strongest readings are used, weighted `1 / (1 + (max - rssi) / 10)`. `P0` and `n` have weak priors at -40 dBm and 3.0 and are clamped to -60..-20 dBm and 2..4. The fit starts at the weighted centroid and at 8 points one spread around it, and keeps the best. The point may lie outside the walked area (NFR-5) but at most 25 m from the centroid; a clamped fit is low confidence. On a walk narrower than 1 m (one straight corridor) the point is put back on the walk line, because the side cannot be told. Fewer than 3 readings, or a failed fit, use the centroid (`weighted_centroid`). Confident needs 5 or more readings and a spread (2 x the RMS distance from the mean position) of 3 m or more; otherwise `low_confidence` is set and the marker is still drawn, faded. `confidence` (0 to 1) = min(1, count / 10) x min(1, spread / 6 m) x 1 / (1 + (rms / 8 dB)^2), 0 without a fit.
 
 **Drift correction (FR-10):** done on the phone. Between two checkpoints (a tapped position or a GPS fix with accuracy 10 m or better), the app spreads the position error linearly over the readings taken in between before uploading, so the API stores corrected positions. Indoor GPS is often 5 to 30 m off, so only good fixes are used.
 

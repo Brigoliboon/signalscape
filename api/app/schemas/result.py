@@ -11,6 +11,12 @@ class Thresholds(BaseModel):
 
 
 class AccessPointOut(BaseModel):
+    """``method`` is ``path_loss_lsq`` (v1.1 fit) or ``weighted_centroid`` (too
+    few readings to fit, or results from v1.0). ``confidence`` is 0 to 1;
+    ``low_confidence`` is true below 5 readings or 3 m of spread (FR-24).
+    ``spread_m`` is 2 x the RMS distance of the readings from their mean. All
+    three are null on results processed before v1.1."""
+
     floor_id: uuid.UUID
     floor_level: int
     bssid: str
@@ -21,6 +27,9 @@ class AccessPointOut(BaseModel):
     method: str
     reading_count: int
     max_rssi_dbm: int
+    confidence: float | None = None
+    low_confidence: bool | None = None
+    spread_m: float | None = None
 
 
 class AccessPointRead(AccessPointOut):

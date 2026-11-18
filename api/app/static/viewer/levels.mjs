@@ -141,6 +141,29 @@ export function cellAt(u, v, cols, rows) {
   return { col, row, index: row * cols + col };
 }
 
+/**
+ * Whether an access point is drawn as a low-confidence placement (FR-24). Results
+ * processed before v1.1 have no rating, so they count as low confidence too.
+ */
+export function isLowConfidence(ap) {
+  return ap.low_confidence !== false;
+}
+
+/** The detail line for a tapped access point: confidence, readings and spread (FR-25). */
+export function apConfidenceText(ap) {
+  const count = Number(ap.reading_count) || 0;
+  const readings = `${count} ${count === 1 ? 'reading' : 'readings'}`;
+  const spread =
+    ap.spread_m === null || ap.spread_m === undefined ? '' : ` · spread ${Number(ap.spread_m).toFixed(1)} m`;
+  if (ap.confidence === null || ap.confidence === undefined) {
+    return `Low confidence: ${readings} · not rated, process the survey again`;
+  }
+  const percent = Math.round(Number(ap.confidence) * 100);
+  return isLowConfidence(ap)
+    ? `Low confidence: ${readings}${spread} · ${percent}%`
+    : `Confidence ${percent}%: ${readings}${spread}`;
+}
+
 export function formatDbm(value) {
   return `${Number(value).toFixed(1).replace(/\.0$/, '')} dBm`;
 }

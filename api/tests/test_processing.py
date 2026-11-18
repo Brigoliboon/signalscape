@@ -440,10 +440,14 @@ def test_grid_cell_corners() -> None:
 # --- access points ----------------------------------------------------------
 
 
-def test_access_point_is_the_power_weighted_centroid() -> None:
+def test_access_point_falls_back_to_the_weighted_centroid_with_few_readings() -> None:
+    # two readings are too few to fit: the v1.0 power-weighted centroid is used
     # equal strength: the midpoint
     mid = proc.estimate_access_points([r(0, 0, -50), r(10, 0, -50)])[0]
     assert (mid.x, mid.y) == pytest.approx((5.0, 0.0))
+    assert mid.method == proc.AP_FALLBACK_METHOD == "weighted_centroid"
+    assert mid.low_confidence
+    assert mid.confidence == 0
     # -50 vs -60 dBm is a 10x power ratio: x = 10 * 10 / 11
     skew = proc.estimate_access_points([r(0, 0, -50, t=0), r(10, 0, -60, t=1)])[0]
     assert skew.x == pytest.approx(10 / 11)
@@ -451,13 +455,130 @@ def test_access_point_is_the_power_weighted_centroid() -> None:
     assert skew.max_rssi_dbm == -50
 
 
-def test_access_point_uses_only_the_ten_strongest_readings() -> None:
+def test_weighted_centroid_uses_only_the_ten_strongest_readings() -> None:
     strong = [r(float(i), 0, -50, t=i) for i in range(10)]
     weak = r(1000, 0, -90, t=99)
-    ap = proc.estimate_access_points([*strong, weak])[0]
     # the weak far reading is excluded (it would drag x towards 1000 otherwise)
-    assert ap.x == pytest.approx(4.5, abs=1e-6)
-    assert ap.reading_count == 11
+    assert proc.weighted_centroid([*strong, weak]) == pytest.approx((4.5, 0.0))
+
+
+# A 6 m square walked along its edges, one reading per meter (24 readings).
+SQUARE_WALK = (
+    [(float(x), 0.0) for x in range(7)]
+    + [(6.0, float(y)) for y in range(1, 7)]
+    + [(float(x), 6.0) for x in range(5, -1, -1)]
+    + [(0.0, float(y)) for y in range(5, 0, -1)]
+)
+
+
+def path_loss_readings(
+    true_xy: tuple[float, float],
+    walk: list[tuple[float, float]],
+    *,
+    p0: float = -40.0,
+    exponent: float = 3.0,
+    noise_db: float = 1.0,
+    seed: int = 1,
+) -> list[Reading]:
+    """Readings from the log-distance model (AP 1 m above the phone) plus noise."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for i, (x, y) in enumerate(walk):
+        d = math.sqrt((x - true_xy[0]) ** 2 + (y - true_xy[1]) ** 2 + 1.0)
+        rssi = p0 - 10 * exponent * math.log10(d) + rng.normal(0, noise_db)
+        out.append(r(x, y, rssi, t=float(i)))
+    return out
+
+
+def test_path_loss_distance() -> None:
+    assert proc.path_loss_distance(-40, -40, 3) == pytest.approx(1.0)
+    assert proc.path_loss_distance(-70, -40, 3) == pytest.approx(10.0)
+
+
+def test_spread_is_twice_the_rms_distance_from_the_mean() -> None:
+    two = proc.spread_m(np.array([0.0, 3.0]), np.array([0.0, 0.0]))
+    assert two == pytest.approx(3.0)  # two readings: the distance between them
+    assert proc.spread_m(np.array([1.0]), np.array([1.0])) == 0
+    assert proc.spread_m(np.array([]), np.array([])) == 0
+
+
+def test_access_point_outside_the_walked_area_is_placed_near_its_true_spot() -> None:
+    # The router is 6 m east of the walked square. The v1.0 centroid can never
+    # leave the square (x <= 6); the path-loss fit should land near x = 12.
+    readings = path_loss_readings((12.0, 3.0), SQUARE_WALK)
+    ap = proc.estimate_access_points(readings)[0]
+    assert ap.method == proc.AP_METHOD == "path_loss_lsq"
+    assert math.hypot(ap.x - 12.0, ap.y - 3.0) < 1.5
+    assert ap.x > 6.0  # outside the walked area (NFR-5)
+    assert proc.weighted_centroid(readings)[0] <= 6.0
+    assert not ap.low_confidence
+    assert ap.reading_count == 24
+    assert ap.spread_m >= proc.AP_MIN_SPREAD_M
+    assert 0.8 <= ap.confidence <= 1.0
+
+
+def test_access_point_inside_the_walked_area_is_fitted_too() -> None:
+    readings = path_loss_readings((3.0, 3.0), SQUARE_WALK, p0=-38, exponent=2.7)
+    ap = proc.estimate_access_points(readings)[0]
+    assert math.hypot(ap.x - 3.0, ap.y - 3.0) < 1.0
+    assert not ap.low_confidence
+
+
+def test_straight_walk_keeps_the_access_point_on_its_line() -> None:
+    # A corridor walk cannot tell which side the router is on: no made-up side.
+    corridor = [(float(x), 2.0) for x in range(20)]
+    readings = path_loss_readings((8.0, 5.0), corridor, noise_db=2.0)
+    ap = proc.estimate_access_points(readings)[0]
+    assert ap.y == pytest.approx(2.0, abs=1e-6)
+    assert abs(ap.x - 8.0) < 2.0
+    # a wide walk is left alone
+    assert proc.onto_walk_line(
+        3.0, 9.0, np.array([0.0, 6.0, 0.0]), np.array([0.0, 0.0, 6.0])
+    ) == (3.0, 9.0)
+    assert proc.onto_walk_line(3.0, 9.0, np.array([1.0]), np.array([1.0])) == (
+        3.0,
+        9.0,
+    )
+
+
+def test_tight_cluster_is_low_confidence_but_still_returned() -> None:
+    # 8 readings within about 1.5 m: enough readings, too little spread (FR-24)
+    cluster = [(0.2 * i, 0.1 * i) for i in range(8)]
+    ap = proc.estimate_access_points(path_loss_readings((5.0, 5.0), cluster))[0]
+    assert ap.reading_count == 8
+    assert ap.spread_m < proc.AP_MIN_SPREAD_M
+    assert ap.low_confidence
+    assert ap.confidence < 0.5
+
+
+def test_too_few_readings_are_low_confidence_even_with_spread() -> None:
+    corners = [(0.0, 0.0), (4.0, 0.0), (0.0, 4.0), (4.0, 4.0)]
+    ap = proc.estimate_access_points(path_loss_readings((5.0, 5.0), corners))[0]
+    assert ap.reading_count == 4 < proc.AP_MIN_READINGS
+    assert ap.spread_m >= proc.AP_MIN_SPREAD_M
+    assert ap.method == proc.AP_METHOD  # 3 or more readings are fitted
+    assert ap.low_confidence
+
+
+def test_fit_is_clamped_near_its_start_point() -> None:
+    readings = path_loss_readings((3.0, 3.0), SQUARE_WALK)
+    xs = np.array([x.x for x in readings])
+    ys = np.array([x.y for x in readings])
+    rssi = np.array([x.rssi for x in readings])
+    fit = proc.fit_path_loss(xs, ys, rssi, (200.0, 0.0))
+    assert fit is not None
+    assert fit.clamped
+    assert math.hypot(fit.x - 200.0, fit.y) == pytest.approx(proc.AP_MAX_OFFSET_M)
+    assert proc.AP_EXPONENT_RANGE[0] <= fit.exponent <= proc.AP_EXPONENT_RANGE[1]
+    assert proc.AP_P0_RANGE_DBM[0] <= fit.p0_dbm <= proc.AP_P0_RANGE_DBM[1]
+
+
+def test_placement_confidence() -> None:
+    assert proc.placement_confidence(10, 6.0, 0.0) == 1.0
+    assert proc.placement_confidence(5, 3.0, 0.0) == 0.25
+    assert proc.placement_confidence(10, 6.0, 8.0) == 0.5
+    assert proc.placement_confidence(10, 6.0, None) == 0.0
+    assert proc.placement_confidence(100, 100.0, 0.0) == 1.0
 
 
 def test_access_point_floor_is_where_its_strongest_reading_is() -> None:

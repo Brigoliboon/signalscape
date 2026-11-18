@@ -246,6 +246,78 @@ void main() {
     expect(find.textContaining('7 readings'), findsOneWidget);
   });
 
+  testWidgets('access points are drawn by placement confidence (FR-25)', (
+    tester,
+  ) async {
+    final routes = goodRoutes();
+    routes['GET /api/surveys/s1/geojson'] = () => jsonResponse(
+      collection([
+        cell(121.0, 14.6, -50, 0, level: 'good'),
+        ap(
+          121.0001,
+          14.6001,
+          0,
+          readings: 12,
+          confidence: 0.9,
+          lowConfidence: false,
+          spreadM: 6.0,
+        ),
+        ap(
+          121.0002,
+          14.6001,
+          0,
+          bssid: 'aa:bb:cc:dd:ee:02',
+          readings: 3,
+          confidence: 0.1,
+          lowConfidence: true,
+          spreadM: 1.2,
+        ),
+      ]),
+    );
+    await pump(tester, routes);
+    final sure = find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:01'));
+    final unsure = find.byKey(const ValueKey('ap-aa:bb:cc:dd:ee:02'));
+    expect(
+      find.descendant(
+        of: sure,
+        matching: find.byKey(const ValueKey('ap-solid')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: unsure,
+        matching: find.byKey(const ValueKey('ap-hollow')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: unsure, matching: find.text('?')),
+      findsOneWidget,
+    );
+    final ring = tester.widget<Opacity>(
+      find.descendant(of: unsure, matching: find.byType(Opacity)),
+    );
+    expect(ring.opacity, 0.4);
+    // The confident marker is the primary blue, not a signal colour.
+    final disc = tester.widget<Container>(
+      find.descendant(
+        of: sure,
+        matching: find.byKey(const ValueKey('ap-solid')),
+      ),
+    );
+    expect((disc.decoration! as BoxDecoration).color, AppColors.primary);
+    // Tap targets stay at least 48 dp.
+    expect(tester.getSize(unsure).width, greaterThanOrEqualTo(kTarget));
+    expect(tester.getSize(unsure).height, greaterThanOrEqualTo(kTarget));
+    await tester.tap(unsure);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Low confidence: 3 readings · spread 1.2 m · 10%'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('the map still shows without a trail', (tester) async {
     final routes = goodRoutes();
     routes.remove('GET /api/surveys/s1/trail');

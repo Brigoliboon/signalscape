@@ -12,6 +12,7 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import {
   CONFIDENCE_NOTE,
+  apConfidenceText,
   LEGEND_STORAGE_KEY,
   LEVEL_COLORS,
   LEVEL_NAMES,
@@ -21,6 +22,7 @@ import {
   fadedColor,
   floorElevation,
   formatDbm,
+  isLowConfidence,
   isUuid,
   legendEntries,
   legendStartsOpen,
@@ -46,7 +48,11 @@ import {
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
+// Access points are coloured by placement confidence (FR-25), never with the
+// green, amber or red of signal levels: solid blue when confident, a 40% wireframe
+// with a "?" badge when not.
 const AP_COLOR = '#1d4ed8';
+const AP_LOW_OPACITY = 0.4;
 const TRAIL_COLOR = '#7c3aed';
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
@@ -474,15 +480,23 @@ function addAccessPoints(floor, unit) {
   for (const ap of state.accessPoints) {
     if (ap.floor_id !== floor.info.floor_id) continue;
     const local = toLocal(ap.lat, ap.lng, state.survey.origin_lat, state.survey.origin_lng);
+    const low = isLowConfidence(ap);
     const marker = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.OctahedronGeometry(unit * 1.3),
-      new THREE.MeshLambertMaterial({ color: AP_COLOR }),
+      low
+        ? new THREE.MeshBasicMaterial({
+            color: AP_COLOR,
+            wireframe: true,
+            transparent: true,
+            opacity: AP_LOW_OPACITY,
+          })
+        : new THREE.MeshLambertMaterial({ color: AP_COLOR }),
     );
     body.position.y = unit * 3;
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(unit * 0.08, unit * 0.08, unit * 3, 6),
-      new THREE.MeshBasicMaterial({ color: AP_COLOR }),
+      new THREE.MeshBasicMaterial({ color: AP_COLOR, transparent: low, opacity: low ? AP_LOW_OPACITY : 1 }),
     );
     pole.position.y = unit * 1.5;
     const name = makeLabel(ap.ssid && ap.ssid.length > 0 ? ap.ssid : '(hidden)', AP_COLOR);
@@ -490,6 +504,13 @@ function addAccessPoints(floor, unit) {
     name.scale.set(nameHeight * name.userData.aspect, nameHeight, 1);
     name.position.y = unit * 5.8;
     marker.add(body, pole, name);
+    if (low) {
+      const badge = makeLabel('?', AP_COLOR);
+      const badgeHeight = unit * 1.6;
+      badge.scale.set(badgeHeight * badge.userData.aspect, badgeHeight, 1);
+      badge.position.set(unit * 1.6, unit * 4.2, 0);
+      marker.add(badge);
+    }
     marker.position.set(local.x, 0, -local.y);
     body.userData.accessPoint = ap;
     floor.group.add(marker);
@@ -656,8 +677,8 @@ function pick(event) {
   if (ap) {
     const name = ap.ssid && ap.ssid.length > 0 ? ap.ssid : '(hidden network)';
     showInfo(
-      `Estimated access point: ${name} · ${ap.bssid} · strongest reading ${formatDbm(ap.max_rssi_dbm)}, ` +
-        `placed from ${ap.reading_count} readings`,
+      `Estimated access point: ${name} · ${ap.bssid} · ${apConfidenceText(ap)} · ` +
+        `strongest reading ${formatDbm(ap.max_rssi_dbm)}`,
     );
   } else {
     describeCell(hit);
@@ -717,7 +738,8 @@ function buildLegend() {
   }));
   rows.push({ text: `Lines: every ${DEFAULT_CONTOUR_STEP_DB} dBm`, color: null });
   rows.push({ text: CONFIDENCE_NOTE, color: fadedColor(LEVEL_COLORS.fair) });
-  rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: true });
+  rows.push({ text: 'Estimated access point', color: AP_COLOR, ap: 'solid' });
+  rows.push({ text: 'Access point, low confidence (?)', color: null, ap: 'low' });
   if (state.trail && state.trail.start) {
     rows.push({ text: 'Walked path', color: TRAIL_COLOR });
     rows.push({ text: 'Start', color: START_COLOR });
@@ -726,9 +748,9 @@ function buildLegend() {
   for (const row of rows) {
     const item = document.createElement('li');
     const swatch = document.createElement('span');
-    swatch.className = row.ap ? 'swatch ap' : 'swatch';
+    swatch.className = row.ap ? `swatch ap${row.ap === 'low' ? ' low' : ''}` : 'swatch';
     if (row.color) swatch.style.background = row.color;
-    else swatch.classList.add('none');
+    else if (!row.ap) swatch.classList.add('none');
     swatch.setAttribute('aria-hidden', 'true');
     const text = document.createElement('span');
     text.textContent = row.text;

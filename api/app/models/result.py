@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     REAL,
+    Boolean,
     CheckConstraint,
     DateTime,
     Double,
@@ -22,7 +23,12 @@ from app.db.base import Base
 
 
 class AccessPointEstimate(Base):
-    """Estimated position of one access point (FR-14)."""
+    """Estimated position of one access point (FR-14, FR-23 to FR-25).
+
+    ``confidence``, ``low_confidence`` and ``spread_m`` are null on rows stored
+    before v1.1 (method ``weighted_centroid``); readers treat those as low
+    confidence until the survey is processed again.
+    """
 
     __tablename__ = "access_point_estimates"
     __table_args__ = (
@@ -54,6 +60,9 @@ class AccessPointEstimate(Base):
     method: Mapped[str] = mapped_column(Text, nullable=False)
     reading_count: Mapped[int] = mapped_column(Integer, nullable=False)
     max_rssi_dbm: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(REAL, nullable=True)
+    low_confidence: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    spread_m: Mapped[float | None] = mapped_column(REAL, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

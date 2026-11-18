@@ -4,6 +4,8 @@ import test from 'node:test';
 
 import {
   CONFIDENCE_NOTE,
+  apConfidenceText,
+  isLowConfidence,
   LEVEL_COLORS,
   MIN_CONFIDENCE_SHARE,
   cellAt,
@@ -158,4 +160,17 @@ test('the legend starts collapsed on a phone and open on a desktop, unless chose
   // Anything else stored is ignored.
   assert.equal(legendStartsOpen('maybe', 390), false);
   assert.equal(LEGEND_STORAGE_KEY, 'signalscape.legend');
+});
+
+test('access point confidence text and flag (FR-24, FR-25)', () => {
+  const sure = { reading_count: 12, confidence: 0.87, low_confidence: false, spread_m: 6.42 };
+  assert.equal(isLowConfidence(sure), false);
+  assert.equal(apConfidenceText(sure), 'Confidence 87%: 12 readings · spread 6.4 m');
+  const unsure = { reading_count: 3, confidence: 0.1, low_confidence: true, spread_m: 1.2 };
+  assert.equal(isLowConfidence(unsure), true);
+  assert.equal(apConfidenceText(unsure), 'Low confidence: 3 readings · spread 1.2 m · 10%');
+  // processed before v1.1: no rating, drawn as low confidence
+  const old = { reading_count: 1, confidence: null, low_confidence: null, spread_m: null };
+  assert.equal(isLowConfidence(old), true);
+  assert.equal(apConfidenceText(old), 'Low confidence: 1 reading · not rated, process the survey again');
 });

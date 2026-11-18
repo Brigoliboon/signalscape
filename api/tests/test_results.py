@@ -493,17 +493,24 @@ def test_access_points_list(scene: Scene) -> None:
         "method",
         "reading_count",
         "max_rssi_dbm",
+        "confidence",
+        "low_confidence",
+        "spread_m",
         "computed_at",
     }
     # strongest first by default: A's best is -50, B's is -65 (floor 0)
     assert [i["bssid"] for i in listing["items"]] == [A, B]
-    assert first["method"] == "weighted_centroid"
+    assert first["method"] == "path_loss_lsq"
     assert first["floor_level"] == 0
-    # A sits between its readings, nearest the strongest
+    # A is fitted near its strongest reading, on the line of the straight walk
     lat, lng = first["lat"], first["lng"]
     x, y = proc.to_local(lat, lng, scene.survey.origin_lat, scene.survey.origin_lng)
-    assert 0.5 <= x < 2.5
+    assert -2.0 < x < 2.5
     assert y == pytest.approx(0.5, abs=1e-6)
+    # 4 readings: below the 5 needed for a confident placement (FR-24)
+    assert first["low_confidence"] is True
+    assert 0 <= first["confidence"] < 1
+    assert first["spread_m"] == pytest.approx(4.47, abs=0.01)
 
     def get(query: str) -> dict:
         response = scene.get(f"access-points?{query}")
@@ -519,6 +526,7 @@ def test_access_points_list(scene: Scene) -> None:
     assert [i["bssid"] for i in get("sort=bssid")["items"]] == [A, B]
     assert [i["bssid"] for i in get("sort=-bssid")["items"]] == [B, A]
     assert get("page=2&page_size=1")["items"][0]["bssid"] == B
+    assert len(get("sort=-confidence")["items"]) == 2
     assert scene.get("access-points?sort=lat").status_code == 422
 
 
@@ -552,6 +560,7 @@ def test_networks_work_before_processing(scene: Scene) -> None:
     assert [i["ssid"] for i in get("sort=ssid")["items"]] == ["net-01", "net-02"]
     assert [i["bssid"] for i in get("sort=-bssid")["items"]] == [B, A]
     assert get("page=2&page_size=1")["items"][0]["bssid"] == B
+    assert len(get("sort=-confidence")["items"]) == 2
     assert get("page=2&page_size=1")["total"] == 2
     assert scene.get("networks?sort=rssi").status_code == 422
 
@@ -621,6 +630,8 @@ def test_geojson_default_has_cells_and_access_points_per_floor(scene: Scene) -> 
     assert len(cells) == 7 + 3
     assert {f["properties"]["floor_level"] for f in cells} == {0, 1}
     assert len(aps) == 2
+    assert {"confidence", "low_confidence", "spread_m"} <= set(aps[0]["properties"])
+    assert aps[0]["properties"]["method"] == "path_loss_lsq"
     assert not [f for f in found if f["properties"]["kind"] == "reading"]
     # features come floor by floor
     levels = [f["properties"]["floor_level"] for f in cells]
