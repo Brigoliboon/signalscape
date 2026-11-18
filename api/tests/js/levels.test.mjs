@@ -10,6 +10,14 @@ import {
   ZONE_HATCH_ALPHA,
   zoneLegendEntries,
   zonePixels,
+  FOOTPRINT_FAIR_ALPHA,
+  FOOTPRINT_GOOD_ALPHA,
+  LINK_COLORS,
+  ROUTER_PALETTE,
+  footprintPixels,
+  linkText,
+  routerColor,
+  routerTitle,
   LEVEL_COLORS,
   MIN_CONFIDENCE_SHARE,
   cellAt,
@@ -224,4 +232,48 @@ test('zone pixels: row 0 of the picture is the north row', () => {
   const p = zonePixels([-90, -50], 1, 2, { good_dbm: -60, dead_dbm: -75 }, 4);
   assert.equal(p.data[(1 * 4 + 1) * 4 + 3], 0); // top (north) is clear
   assert.ok(p.data[(5 * 4 + 1) * 4 + 3] > 0); // bottom (south) is shaded
+});
+
+test('router colours are not signal colours and repeat (FR-27)', () => {
+  const signal = Object.values(LEVEL_COLORS);
+  for (const color of ROUTER_PALETTE) assert.ok(!signal.includes(color));
+  assert.equal(routerColor(1), '#1d4ed8');
+  assert.equal(routerColor(ROUTER_PALETTE.length + 1), routerColor(1));
+  assert.equal(routerColor(0), routerColor(1));
+  assert.equal(LINK_COLORS.dead, LEVEL_COLORS.dead);
+  assert.equal(LINK_COLORS.weak, LEVEL_COLORS.fair);
+});
+
+test('footprint pixels: good stronger than fair, dead and empty clear (FR-28)', () => {
+  const t = { good_dbm: -60, dead_dbm: -75 };
+  const p = footprintPixels([-50, -70, -90, null], 4, 1, t, '#7c3aed', 2);
+  assert.equal(p.width, 8);
+  assert.equal(p.height, 2);
+  const alpha = (px) => p.data[px * 4 + 3];
+  assert.equal(alpha(0), Math.round(FOOTPRINT_GOOD_ALPHA * 255));
+  assert.equal(alpha(2), Math.round(FOOTPRINT_FAIR_ALPHA * 255));
+  assert.equal(alpha(4), 0);
+  assert.equal(alpha(6), 0);
+  assert.deepEqual(Array.from(p.data.slice(0, 3)), hexToRgb('#7c3aed'));
+  // row 0 of the picture is the north row
+  const two = footprintPixels([-90, -50], 1, 2, t, '#7c3aed', 1);
+  assert.ok(two.data[3] > 0);
+  assert.equal(two.data[7], 0);
+});
+
+test('router titles and link texts match the app (FR-27, FR-29)', () => {
+  assert.equal(routerTitle({ label: 'Router 1', ssids: ['guest', 'staff'] }), 'Router 1: guest, staff');
+  assert.equal(routerTitle({ label: 'Router 2', ssids: [''] }), 'Router 2: (hidden network)');
+  assert.equal(routerTitle({ label: 'Router 3', ssids: [] }), 'Router 3: (hidden network)');
+  const link = { length_m: 10.4, min_rssi_dbm: -91.2, weak_m: 2, dead_m: 4.2, no_data_m: 0 };
+  assert.equal(
+    linkText({ ...link, status: 'dead' }, 'Router 1', 'Router 2'),
+    'Router 1 → Router 2 · 10 m · dead gap 4 m (weakest -91 dBm)',
+  );
+  assert.equal(linkText({ ...link, status: 'weak', min_rssi_dbm: null }, 'A', 'B'), 'A → B · 10 m · weak gap 2 m');
+  assert.equal(
+    linkText({ ...link, status: 'covered', min_rssi_dbm: -55 }, 'A', 'B'),
+    'A → B · 10 m · covered all the way (weakest -55 dBm)',
+  );
+  assert.equal(linkText({ ...link, status: 'no_data' }, 'A', 'B'), 'A → B · 10 m · not walked, no data');
 });

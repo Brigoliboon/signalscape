@@ -794,4 +794,16 @@ void main() {
       expect(find.byKey(const ValueKey('style-note')), findsOneWidget);
     });
   });
+
+  testWidgets('the app bar opens router coverage mode (FR-27)', (tester) async {
+    final routes = goodRoutes();
+    routes['GET /api/surveys/s1/routers'] = () =>
+        jsonResponse({'floors': <Object>[]});
+    final calls = await pump(tester, routes);
+    await tester.tap(find.byKey(const ValueKey('open-routers')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('GET /api/surveys/s1/routers'));
+    expect(find.text('Router coverage'), findsOneWidget);
+    expect(find.text('No routers'), findsOneWidget);
+  });
 }

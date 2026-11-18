@@ -29,6 +29,12 @@ import {
   ZONE_PIXELS_PER_CELL,
   zoneLegendEntries,
   zonePixels,
+  FOOTPRINT_PIXELS_PER_CELL,
+  LINK_COLORS,
+  footprintPixels,
+  linkText,
+  routerColor,
+  routerTitle,
   networkLabel,
   parseFragment,
   toLocal,
@@ -87,6 +93,13 @@ const els = {
   contours: $('heat-contours'),
   rampBar: $('ramp-bar'),
   rampTicks: $('ramp-ticks'),
+  modeCoverage: $('mode-coverage'),
+  modeRouters: $('mode-routers'),
+  routerSet: $('router-set'),
+  routerCount: $('router-count'),
+  routerList: $('router-list'),
+  chainList: $('chain-list'),
+  showGaps: $('show-gaps'),
 };
 
 const state = {
@@ -105,6 +118,10 @@ const state = {
   // The dead and weak zone layer (FR-26). On by default, as the v1.0 dead-zone
   // blocks were.
   zones: true,
+  // Router coverage mode (FR-27 to FR-29): a separate mode, read on first use.
+  mode: 'coverage',
+  routers: null,
+  selectedRouters: new Set(),
 };
 
 let renderer = null;
@@ -351,6 +368,7 @@ function buildFloor(floor) {
   floor.zoneMesh = null;
   floor.apMeshes = [];
   floor.trailMeshes = [];
+  floor.routerMeshes = null;
   floor.group.position.y = floorElevation(floor.info.floor_level, floor.info.floor_height_m);
   const unit = worldUnit();
 
@@ -371,6 +389,7 @@ function buildFloor(floor) {
     if (floor.grid) addHeatmap(floor, floor.grid);
     addAccessPoints(floor, unit);
   }
+  if (state.routers) addRouters(floor, unit);
   addTrail(floor, unit);
   applyVisibility(floor);
 }
@@ -483,6 +502,125 @@ function addZones(floor, grid, layout) {
   mesh.renderOrder = 1;
   floor.group.add(mesh);
   floor.zoneMesh = mesh;
+}
+
+/** A flat picture of an API grid (origin, cell size, cols, rows) at height y. */
+function gridPlane(grid, pixels, y) {
+  const layout = gridLayout(grid);
+  const canvas = document.createElement('canvas');
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
+  canvas.getContext('2d').putImageData(new ImageData(pixels.data, pixels.width, pixels.height), 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(layout.width, layout.depth),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(layout.centerX, y, layout.centerZ);
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+function pictureScale(grid, most) {
+  return Math.max(1, Math.min(most, Math.floor(2048 / Math.max(grid.cols, grid.rows))));
+}
+
+/**
+ * Router coverage mode of one floor: each router's footprint in its own colour,
+ * its marker, the links of each chain coloured by the worst gap on them, and the
+ * weak and dead gaps along those links in the zone colours.
+ */
+function addRouters(floor, unit) {
+  const data = state.routers.floors.find((f) => f.floor_id === floor.info.floor_id);
+  if (!data) return;
+  const meshes = { footprints: [], gaps: [], links: [], markers: [] };
+  const local = (r) => toLocal(r.lat, r.lng, state.survey.origin_lat, state.survey.origin_lng);
+  for (const router of data.routers) {
+    const color = routerColor(router.number);
+    const grid = router.footprint;
+    const pixels = footprintPixels(
+      grid.values,
+      grid.cols,
+      grid.rows,
+      state.thresholds,
+      color,
+      pictureScale(grid, FOOTPRINT_PIXELS_PER_CELL),
+    );
+    if (pixels.data.some((v, i) => i % 4 === 3 && v > 0)) {
+      const mesh = gridPlane(grid, pixels, 0.06 + 0.002 * router.number);
+      floor.group.add(mesh);
+      meshes.footprints.push({ mesh, id: router.router_id });
+    }
+    if (router.lat === null || router.lat === undefined) continue;
+    const at = local(router);
+    const low = isLowConfidence(router);
+    const marker = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(unit * 1.1, 16, 12),
+      low
+        ? new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: AP_LOW_OPACITY })
+        : new THREE.MeshLambertMaterial({ color }),
+    );
+    body.position.y = unit * 3;
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(unit * 0.08, unit * 0.08, unit * 3, 6),
+      new THREE.MeshBasicMaterial({ color }),
+    );
+    pole.position.y = unit * 1.5;
+    const name = makeLabel(low ? `${router.label} ?` : router.label, color);
+    const nameHeight = unit * 2.6;
+    name.scale.set(nameHeight * name.userData.aspect, nameHeight, 1);
+    name.position.y = unit * 5.6;
+    marker.add(body, pole, name);
+    marker.position.set(at.x, 0, -at.y);
+    body.userData.router = router;
+    floor.group.add(marker);
+    meshes.markers.push(marker);
+    meshes.bodies = [...(meshes.bodies || []), body];
+  }
+  const byId = new Map(data.routers.map((r) => [r.router_id, r]));
+  for (const chain of data.chains) {
+    if (chain.gaps) {
+      const g = chain.gaps;
+      const mesh = gridPlane(
+        g,
+        zonePixels(g.values, g.cols, g.rows, state.thresholds, pictureScale(g, ZONE_PIXELS_PER_CELL)),
+        0.1,
+      );
+      floor.group.add(mesh);
+      meshes.gaps.push(mesh);
+    }
+    for (const link of chain.links) {
+      const a = byId.get(link.from_router);
+      const b = byId.get(link.to_router);
+      if (!a || !b || a.lat === null || b.lat === null) continue;
+      const pa = local(a);
+      const pb = local(b);
+      const y = TRAIL_Y + 0.1;
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(pa.x, y, -pa.y),
+          new THREE.Vector3(pb.x, y, -pb.y),
+        ]),
+        link.status === 'covered'
+          ? new THREE.LineBasicMaterial({ color: LINK_COLORS.covered })
+          : new THREE.LineDashedMaterial({
+              color: LINK_COLORS[link.status] || LINK_COLORS.no_data,
+              dashSize: unit * 1.2,
+              gapSize: unit * 0.7,
+            }),
+      );
+      line.computeLineDistances();
+      floor.group.add(line);
+      meshes.links.push(line);
+    }
+  }
+  floor.routerMeshes = meshes;
 }
 
 function addAccessPoints(floor, unit) {
@@ -600,12 +738,21 @@ function trailPointsOf(floor) {
 }
 
 function applyVisibility(floor) {
+  const routerMode = state.mode === 'routers';
   for (const object of floor.trailMeshes || []) object.visible = els.showTrail.checked;
   floor.group.visible = floor.visible;
-  if (floor.zoneMesh) floor.zoneMesh.visible = state.zones;
-  if (floor.heat) floor.heat.visible = els.showHeat.checked;
+  if (floor.zoneMesh) floor.zoneMesh.visible = state.zones && !routerMode;
+  if (floor.heat) floor.heat.visible = els.showHeat.checked && !routerMode;
   for (const item of floor.apMeshes) {
-    item.marker.visible = els.showAps.checked && (!state.bssid || item.ap.bssid === state.bssid);
+    item.marker.visible =
+      !routerMode && els.showAps.checked && (!state.bssid || item.ap.bssid === state.bssid);
+  }
+  const routers = floor.routerMeshes;
+  if (routers) {
+    for (const item of routers.footprints) item.mesh.visible = routerMode && state.selectedRouters.has(item.id);
+    for (const mesh of routers.gaps) mesh.visible = routerMode && els.showGaps.checked;
+    for (const line of routers.links) line.visible = routerMode;
+    for (const marker of routers.markers) marker.visible = routerMode;
   }
 }
 
@@ -672,6 +819,11 @@ function pick(event) {
   const targets = [];
   for (const floor of state.floors) {
     if (!floor.visible) continue;
+    if (state.mode === 'routers') {
+      // The strongest-signal cells are not on show in this mode.
+      if (floor.routerMeshes) targets.push(...(floor.routerMeshes.bodies || []));
+      continue;
+    }
     const surface = floor.heat || floor.slab;
     if (surface) targets.push(surface);
     for (const item of floor.apMeshes) {
@@ -683,8 +835,15 @@ function pick(event) {
     els.info.hidden = true;
     return;
   }
+  const router = hit.object.userData.router;
   const ap = hit.object.userData.accessPoint;
-  if (ap) {
+  if (router) {
+    const names = router.networks.map((n) => `${n.ssid ? n.ssid : '(hidden)'} ${n.bssid}`).join(', ');
+    showInfo(
+      `${router.label}${isLowConfidence(router) ? ' (low confidence placement)' : ''}: ${names} · ` +
+        `${Math.round(router.area_m2)} m² at or above ${state.thresholds.dead_dbm} dBm`,
+    );
+  } else if (ap) {
     const name = ap.ssid && ap.ssid.length > 0 ? ap.ssid : '(hidden network)';
     showInfo(
       `Estimated access point: ${name} · ${ap.bssid} · ${apConfidenceText(ap)} · ` +
@@ -737,9 +896,37 @@ function buildRampBar() {
   }
 }
 
+function routerLegendRows() {
+  const rows = [];
+  const seen = new Set();
+  for (const floor of state.routers.floors) {
+    for (const router of floor.routers) {
+      if (seen.has(router.router_id) || !state.selectedRouters.has(router.router_id)) continue;
+      seen.add(router.router_id);
+      rows.push({ text: `${router.label} footprint`, color: routerColor(router.number), router: true });
+    }
+  }
+  if (els.showGaps.checked) {
+    for (const entry of zoneLegendEntries(state.thresholds)) {
+      rows.push({ text: `${entry.text.replace(':', ' gap:')}`, color: null, zone: entry.level });
+    }
+  }
+  rows.push({ text: 'Link: dead gap on it', color: LINK_COLORS.dead, link: true });
+  rows.push({ text: 'Link: weak gap on it', color: LINK_COLORS.weak, link: true });
+  rows.push({ text: 'Link: covered', color: '#6b7280', link: true });
+  rows.push({ text: 'Router, low confidence (?)', color: null, ap: 'low' });
+  return rows;
+}
+
 function buildLegend() {
   buildRampBar();
   els.legend.replaceChildren();
+  // The signal ramp belongs to the strongest-signal heatmap, not to router mode.
+  els.rampBar.parentElement.hidden = state.mode === 'routers';
+  if (state.mode === 'routers' && state.routers) {
+    renderLegendRows(routerLegendRows());
+    return;
+  }
   // The map is a continuous ramp; the thresholds stay as text. With the zone layer
   // on, its weak and dead shading get swatches with their ranges (FR-26).
   const rows = legendEntries(state.thresholds).map((entry) => ({ text: entry.text, color: null }));
@@ -757,10 +944,16 @@ function buildLegend() {
     rows.push({ text: 'Start', color: START_COLOR });
     rows.push({ text: 'End', color: END_COLOR });
   }
+  renderLegendRows(rows);
+}
+
+function renderLegendRows(rows) {
   for (const row of rows) {
     const item = document.createElement('li');
     const swatch = document.createElement('span');
     swatch.className = row.ap ? `swatch ap${row.ap === 'low' ? ' low' : ''}` : 'swatch';
+    if (row.router) swatch.classList.add('router');
+    if (row.link) swatch.classList.add('link');
     if (row.zone) swatch.classList.add(row.zone === 'dead' ? 'zone-dead' : 'zone-weak');
     else if (row.color) swatch.style.background = row.color;
     else if (!row.ap) swatch.classList.add('none');
@@ -771,6 +964,104 @@ function buildLegend() {
     els.legend.append(item);
   }
 }
+
+/** The router and chain lists of the Layers sheet (router mode). */
+function buildRouterList() {
+  const data = state.routers;
+  els.routerList.replaceChildren();
+  els.chainList.replaceChildren();
+  const routers = data.router_count === 1 ? '1 router' : `${data.router_count} routers`;
+  els.routerCount.textContent =
+    `${routers} in the survey, from ${data.bssid_count} BSSIDs. One radio that serves several network names counts once.`;
+  const seen = new Set();
+  for (const floor of data.floors) {
+    for (const router of floor.routers) {
+      if (seen.has(router.router_id)) continue;
+      seen.add(router.router_id);
+      const label = document.createElement('label');
+      label.className = 'check';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = state.selectedRouters.has(router.router_id);
+      box.addEventListener('change', () => {
+        if (box.checked) state.selectedRouters.add(router.router_id);
+        else state.selectedRouters.delete(router.router_id);
+        buildLegend();
+        applyAllVisibility();
+      });
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch router';
+      swatch.style.background = routerColor(router.number);
+      swatch.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      text.textContent = routerTitle(router);
+      const small = document.createElement('small');
+      const bssids = new Set(router.networks.map((n) => n.bssid)).size;
+      small.textContent = `${bssids} ${bssids === 1 ? 'BSSID' : 'BSSIDs'} · ${Math.round(router.area_m2)} m² on ${floor.floor_label}`;
+      text.append(small);
+      label.append(box, swatch, text);
+      els.routerList.append(label);
+    }
+  }
+  for (const floor of data.floors) {
+    const byId = new Map(floor.routers.map((r) => [r.router_id, r]));
+    const name = (id) => (byId.get(id) ? byId.get(id).label : id);
+    for (const chain of floor.chains) {
+      const item = document.createElement('li');
+      const ssids = chain.ssids.map((s) => (s ? s : '(hidden)')).join(', ');
+      item.textContent = `${floor.floor_label} · ${ssids}: ${chain.router_ids.map(name).join(', ')}`;
+      const lines = chain.links.map((link) => linkText(link, name(link.from_router), name(link.to_router)));
+      if (chain.links.length === 0) lines.push('Fewer than two of these routers are placed on this floor.');
+      else if (chain.weak_cells + chain.dead_cells === 0) lines.push('No weak or dead gap between them.');
+      for (const line of lines) {
+        const small = document.createElement('small');
+        small.textContent = line;
+        item.append(small);
+      }
+      els.chainList.append(item);
+    }
+  }
+  if (!els.chainList.childElementCount) {
+    const item = document.createElement('li');
+    item.textContent = 'No network name is shared by two routers on one floor, so there is no chain to trace.';
+    els.chainList.append(item);
+  }
+}
+
+async function setMode(mode) {
+  if (mode === state.mode || !state.survey) return;
+  if (mode === 'routers' && !state.routers) {
+    const generation = state.generation;
+    showStatus('Loading routers…');
+    try {
+      const data = await api(`/surveys/${state.surveyId}/routers`);
+      if (generation !== state.generation) return;
+      state.routers = data;
+      const first = data.floors.flatMap((f) => f.routers).find((r) => r.number === 1);
+      state.selectedRouters = new Set(first ? [first.router_id] : []);
+      hideStatus();
+    } catch (error) {
+      showStatus(errorText(error), true);
+      return;
+    }
+    for (const floor of state.floors) addRouters(floor, worldUnit());
+    buildRouterList();
+  }
+  state.mode = mode;
+  els.modeCoverage.setAttribute('aria-pressed', String(mode === 'coverage'));
+  els.modeRouters.setAttribute('aria-pressed', String(mode === 'routers'));
+  els.routerSet.hidden = mode !== 'routers';
+  for (const set of document.querySelectorAll('.coverage-only')) set.hidden = mode === 'routers';
+  els.info.hidden = true;
+  buildLegend();
+  applyAllVisibility();
+}
+els.modeCoverage.addEventListener('click', () => setMode('coverage'));
+els.modeRouters.addEventListener('click', () => setMode('routers'));
+els.showGaps.addEventListener('change', () => {
+  buildLegend();
+  applyAllVisibility();
+});
 
 function floorSummaryText(floor) {
   if (!floor.layout) return 'No usable readings';
@@ -936,7 +1227,22 @@ async function start({ surveyId, token }) {
   }
   state.generation += 1;
   const generation = state.generation;
-  Object.assign(state, { token, surveyId, bssid: '', survey: null, accessPoints: [], trail: null, floors: [] });
+  Object.assign(state, {
+    token,
+    surveyId,
+    bssid: '',
+    survey: null,
+    accessPoints: [],
+    trail: null,
+    floors: [],
+    mode: 'coverage',
+    routers: null,
+    selectedRouters: new Set(),
+  });
+  els.modeCoverage.setAttribute('aria-pressed', 'true');
+  els.modeRouters.setAttribute('aria-pressed', 'false');
+  els.routerSet.hidden = true;
+  for (const set of document.querySelectorAll('.coverage-only')) set.hidden = false;
   els.info.hidden = true;
   showStatus('Loading coverage…');
   try {

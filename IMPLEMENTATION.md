@@ -120,11 +120,11 @@ First slice, with M9.
 
 After the 19 Nov slice.
 
-- [ ] Add a separate router coverage mode, not a toggle on the strongest-signal heatmap.
-- [ ] Count each router by BSSID / device and list the SSIDs that router broadcasts under it (FR-27).
-- [ ] Show each selected router's coverage footprint on the map (FR-28).
-- [ ] Trace chained or extended routers and highlight dead or weak gaps between them (FR-29).
-- [ ] Tests for the per-router aggregation and gap highlighting, run in CI.
+- [x] Add a separate router coverage mode, not a toggle on the strongest-signal heatmap.
+- [x] Count each router by BSSID / device and list the SSIDs that router broadcasts under it (FR-27).
+- [x] Show each selected router's coverage footprint on the map (FR-28).
+- [x] Trace chained or extended routers and highlight dead or weak gaps between them (FR-29).
+- [x] Tests for the per-router aggregation and gap highlighting, run in CI.
 
 ## M12: Admin view of surveyor work (FR-30, FR-31, FR-32)
 
@@ -161,6 +161,7 @@ After the 19 Nov slice.
 ---
 
 ## Progress log
+- 2026-11-18 15:36: M11 router coverage mode (branch `feat/router-coverage`). New `GET /surveys/{id}/routers` (no migration; computed from the stored per-BSSID grids and access point estimates, pure math in `app/services/routers.py`). Routers (FR-27): BSSIDs with the same first five bytes (ignoring the locally administered bit) and the same high nibble of the last byte are one router, unless their estimates on one floor are more than 10 m apart; each router lists its SSIDs and BSSIDs, numbered by strongest reading. Footprints (FR-28): the cell-by-cell strongest of the router's per-BSSID grids, with area at or above the dead threshold. Chains (FR-29): routers on a floor sharing a non-hidden SSID, joined by a minimum spanning tree of their estimated positions; each link is sampled every 0.5 m and reported as covered, weak, dead or no data with the meters of each, and the gap cells within 3 m of a link below the good threshold are returned as a grid (unwalked cells are not called dead). App: a separate Router coverage screen opened from the 2D map's app bar (floor chips, router list with checkboxes for footprints, chain list with link text, gap layer chip, numbered router markers, 48 dp targets). 3D page: a Mode switch (Signal coverage / Router coverage) in Layers with the same footprints, gaps, links and router list. Router colours are blues and purples (router 1 #1D4ED8), never the signal colours, which stay for gaps and links. Unit tests for grouping, merging, links and gaps, API tests for counts, footprints, the chain gap, floor filter and access, and app and viewer tests.
 - 2026-11-18 13:12: M10 dead and weak zone layer (branch `feat/dead-weak-layer`, builds on `docs/v1.1-plan`). A "Dead & weak zones" toggle chip next to the floor filter on the 2D map and next to the Network and Floors filters in the 3D viewer's Layers sheet. Weak (fair) cells are shaded amber and dead cells red at 35%, with a diagonal hatch on dead ones, classified from the existing grid with the survey's FR-15 thresholds; no API change. The legend shows both ranges from those thresholds (for example "Weak: -80 to -67 dBm", "Dead: below -80 dBm"). The layer shows with or instead of the heatmap (the 2D Coverage chip, and a new Coverage heatmap switch in 3D). In 3D it replaces the v1.0 red dead-zone blocks and is on by default; on the 2D map it starts off. New `app/lib/core/zones.dart` and `zonePixels` in `levels.mjs`, with unit and widget tests.
 - 2026-11-18 12:43: M9 access point placement (branch `feat/ap-placement`, builds on `docs/v1.1-plan`). `estimate_access_points()` now fits a log-distance path-loss model (position, P0 and n by weighted Levenberg-Marquardt with weak priors at -40 dBm and 3.0, clamped to -60..-20 dBm and 2..4, multi-start from the weighted centroid, at most 25 m from it) and stores method `path_loss_lsq`; fewer than 3 readings or a failed fit fall back to `weighted_centroid`. A straight-line walk keeps the point on its line. Confident needs 5 or more readings and 3 m or more of spread (2 x RMS distance from the mean position; `AP_MIN_READINGS`, `AP_MIN_SPREAD_M`); otherwise `low_confidence`. New nullable columns `confidence`, `low_confidence`, `spread_m` (migration 0007) in the API, GeoJSON and the app. Markers: solid blue #1D4ED8 when confident, a hollow 40% ring with a "?" badge when not, on the 2D map and in the 3D viewer, with confidence, readings and spread on tap. Unit tests for a router outside the walked square, a tight cluster and too few readings. The test-walk follow-up stays open.
 - 2026-11-18 12:20: Merged the approved v1.1 plan into the repo (branch `docs/v1.1-plan`): Part 2 of `REQUIREMENTS.md` (FR-23 to FR-37, NFR-5 to NFR-7) and milestones M9 to M15 here. FR-14 is marked as replaced by FR-23. Nothing ticked.

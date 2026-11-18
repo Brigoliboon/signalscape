@@ -44,6 +44,22 @@
 
       <div class="sheet-body">
         <fieldset class="card">
+          <legend>Mode</legend>
+          <div class="chips">
+            <button id="mode-coverage" class="chip" type="button" aria-pressed="true">Signal coverage</button>
+            <button id="mode-routers" class="chip" type="button" aria-pressed="false">Router coverage</button>
+          </div>
+        </fieldset>
+
+        <fieldset id="router-set" class="card" hidden>
+          <legend>Routers</legend>
+          <p id="router-count" class="note"></p>
+          <div id="router-list"></div>
+          <label class="check"><input id="show-gaps" type="checkbox" checked> Gaps between routers</label>
+          <ul id="chain-list" class="chains"></ul>
+        </fieldset>
+
+        <fieldset class="card coverage-only">
           <legend>Network</legend>
           <select id="network" aria-label="Network"></select>
         </fieldset>
@@ -53,12 +69,12 @@
           <div id="floor-list"></div>
         </fieldset>
 
-        <fieldset class="card">
+        <fieldset class="card coverage-only">
           <legend>Zones</legend>
           <button id="zones-toggle" class="chip" type="button" aria-pressed="true">Dead &amp; weak zones</button>
         </fieldset>
 
-        <fieldset class="card">
+        <fieldset class="card coverage-only">
           <legend>Heatmap</legend>
           <label class="slider" for="heat-opacity">
             <span>Opacity <output id="heat-opacity-text" for="heat-opacity"></output></span>
