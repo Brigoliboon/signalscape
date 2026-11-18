@@ -95,7 +95,74 @@ Tracks build progress by week. Course milestones: proposal (week 1), design (wee
 
 ---
 
+## v1.1: DTO extension (approved 2026-11-18)
+
+Boon approved the v1.1 plan on 2026-11-18. See [Part 2 of `REQUIREMENTS.md`](REQUIREMENTS.md#part-2-v11-dto-extension-approved-2026-11-18) for what each item means. Course grading is done; v1.1 is the Department of Tech Office (DTO) implementation and does not reuse M8. New work starts at **M9**. The first slice is **M9 and M10, due 19 Nov 2026**; M11 to M15 follow after.
+
+## M9: Access point placement — due 19 Nov 2026 (FR-23, FR-24, FR-25, NFR-5)
+
+First slice, with M10. This is the estimated access point markers, not the walk trail.
+
+- [ ] Replace `estimate_access_points()` in `api/app/services/processing.py`. Stop using the power-weighted centroid of the 10 strongest readings (`AP_TOP_READINGS`, `10^(rssi/10)`, method `weighted_centroid`). Use a log-distance path-loss range plus a best-fit (trilateration) position, so a marker can sit beyond the walked path (FR-23, NFR-5). Keep storing `method`.
+- [ ] Require at least 5 readings spread over 3 m or more for a confident placement. Below that, show the marker faded with a "low confidence" flag; do not hide it (FR-24). Keep 5 and 3 m as named settings, not magic numbers scattered in the UI.
+- [ ] Colour access point markers by placement confidence on the 2D map (`app/lib/screens/map_screen.dart`, today `AppColors.primary` for every marker) and in the 3D viewer (`api/app/static/viewer/viewer.mjs`, today a single `AP_COLOR`). The tap/detail text shows confidence, reading count and spread, not only `max_rssi_dbm` (FR-25).
+- [ ] Unit tests for the new math, run in CI: a case where the true position is outside the walked points, and a tight cluster that must show as low confidence.
+- [ ] Follow-up only, not this milestone's main work and not part of the 19 Nov slice: if placements still collapse because almost every reading sits on the start point, run a short instrumented walk that logs step count against readings (`app/lib/core/dead_reckoning.dart`, 0.7 m/step, fixed 1.1 m/s² threshold).
+
+## M10: Dead and weak zone layer — due 19 Nov 2026 (FR-26)
+
+First slice, with M9.
+
+- [ ] Plot dead and weak (fair) areas as their own visible layer on the 2D map and in the 3D viewer (FR-26). Use the existing FR-15 classification and configurable thresholds.
+- [ ] The layer can be shown together with, or instead of, the coverage heatmap, so DTO can see the zones without only reading summary percentages.
+
+## M11: Router coverage mode (FR-27, FR-28, FR-29)
+
+After the 19 Nov slice.
+
+- [ ] Add a separate router coverage mode, not a toggle on the strongest-signal heatmap.
+- [ ] Count each router by BSSID / device and list the SSIDs that router broadcasts under it (FR-27).
+- [ ] Show each selected router's coverage footprint on the map (FR-28).
+- [ ] Trace chained or extended routers and highlight dead or weak gaps between them (FR-29).
+- [ ] Tests for the per-router aggregation and gap highlighting, run in CI.
+
+## M12: Admin view of surveyor work (FR-30, FR-31, FR-32)
+
+After the 19 Nov slice. No assignments table or routes.
+
+- [ ] Survey History shows the surveyor's name on each card. Admins can filter by surveyor; the app sends the existing `surveyor_id` query (FR-30).
+- [ ] "View surveys" on the Users screen opens that surveyor's History (FR-31).
+- [ ] Per-surveyor overview for admins: survey count, a derived area from the buildings and outdoor extents they actually surveyed, and a link to that surveyor's plot history (FR-32). Reuse FR-34 for a combined map once M13 exists.
+
+## M13: Campus map (FR-33, FR-34, FR-35, NFR-6)
+
+After the 19 Nov slice.
+
+- [ ] Group several buildings and the outdoor areas between them into a campus or site, and open one map of that site (FR-33).
+- [ ] Select and merge multiple processed surveys on that campus into one consolidated coverage map, one set of access point estimates, and the dead and weak layer (FR-34). Starting merge rule: run the existing cleaner and the v1.1 estimator on the combined cleaned readings of the selection. Keep NFR-6 in mind.
+- [ ] Outdoors, use GPS for reading positions (FR-35). Indoor walks keep dead reckoning with the v1.0 start fix and checkpoints.
+
+## M14: AI analysis report (FR-36)
+
+After the 19 Nov slice.
+
+- [ ] The API generates an AI-written analysis report for a selected survey or a consolidated campus view: a summary of coverage, including dead and weak areas, and recommendations (FR-36).
+- [ ] DTO can export the report (for example PDF or a shareable document, plus a text or Markdown original).
+- [ ] Use one configured provider, with the API key in the existing secrets setup (CD-4), not in the repo. v1.0 has no AI provider (gap-filling is IDW). If the key is missing, fail clearly and still allow export of the plotted layers and FR-19 figures.
+
+## M15: Web dashboard (FR-37, NFR-7)
+
+After the 19 Nov slice.
+
+- [ ] Browser sign-in against the existing JWT API, plus a picker for campuses, buildings and surveys.
+- [ ] Open the consolidated maps, the dead and weak layer, router coverage mode, and the analysis report in the browser at `https://signalscape.boonbrigoli.site`, reusing the existing Three.js page and GeoJSON coverage where possible (FR-37). Usable at a typical desktop width (NFR-7).
+- [ ] Same role rules as the API (FR-2, FR-3). DTO uses the Admin role. Not a Flutter web port of survey capture.
+
+---
+
 ## Progress log
+- 2026-11-18 12:20: Merged the approved v1.1 plan into the repo (branch `docs/v1.1-plan`): Part 2 of `REQUIREMENTS.md` (FR-23 to FR-37, NFR-5 to NFR-7) and milestones M9 to M15 here. FR-14 is marked as replaced by FR-23. Nothing ticked.
+- 2026-11-18: Boon approved the v1.1 plan (DTO extension). First slice M9 and M10 due 19 Nov 2026; M11 to M15 after; no assignments table; DTO uses the Admin role; campus map includes outdoor areas with GPS; analysis is a plotted dead and weak layer plus an exportable AI report; router coverage is a separate per-router mode; dashboard at `signalscape.boonbrigoli.site`.
 - 2026-11-16 23:28: Tagged `v1.0` on `main` at `ef2f8a5` (merge of PR #30) and published the GitHub release. Ticked the M8 repo-tagged-`v1.0` item (branch `chore/tick-v1-tag`).
 - 2026-11-16 23:22: Ticked the remaining M7 items on branch `chore/release-v1.0` (PR #30), at Boon's request: full survey of a real building (at least 2 floors), bug fixes and accuracy check, privacy checks against RA 10173, backend coverage at 60% or more (already 100% in CI and local pytest), and the IEEE paper draft. The database backup routine stays out of scope and unticked. The M8 `v1.0` tag item stays unticked until the tag is added after this PR merges.
 - 2026-11-16 23:09: v1.0 release prep (branch `chore/release-v1.0`). Ticked the real-phone test pass in M7 (Boon tested the full flow on a real phone on 2026-11-16; all good) and updated the M4 and M6 checklist notes that still said those items had not been tried on a phone. Marked the database backup routine as out of scope (Boon decided 2026-11-16); it is not ticked. Left the M8 `v1.0` tag item unticked: the tag will be added after this PR merges, not in this PR. Corrected the M6 tidy-up progress-log time from 22:15 to 21:06, the author date of commit 2757e77. Added `CHANGELOG.md` for 1.0.0 and linked it from the README. Bumped the API version from 0.1.0 to 1.0.0 in `api/pyproject.toml` and the FastAPI app; the Flutter app was already `1.0.0+1`, which matches the phone-tested APK, so it was left unchanged.
