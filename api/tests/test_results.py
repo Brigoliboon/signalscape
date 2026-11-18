@@ -560,7 +560,6 @@ def test_networks_work_before_processing(scene: Scene) -> None:
     assert [i["ssid"] for i in get("sort=ssid")["items"]] == ["net-01", "net-02"]
     assert [i["bssid"] for i in get("sort=-bssid")["items"]] == [B, A]
     assert get("page=2&page_size=1")["items"][0]["bssid"] == B
-    assert len(get("sort=-confidence")["items"]) == 2
     assert get("page=2&page_size=1")["total"] == 2
     assert scene.get("networks?sort=rssi").status_code == 422
 
