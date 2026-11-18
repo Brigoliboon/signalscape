@@ -51,9 +51,44 @@ POSITION_SQUARE_M = 0.5
 _CHUNK_ELEMENTS = 2_000_000
 _EXACT_D2 = 1e-9
 
-# Access points.
+# Access points (FR-23 to FR-25). Each one is placed by a log-distance path-loss
+# fit: rssi = P0 - 10 n log10(d), d the 3D distance to the access point, P0 the
+# RSSI at 1 m and n the path-loss exponent. Position, P0 and n are fitted by
+# weighted least squares (Levenberg-Marquardt), starting at the weighted centroid.
+AP_METHOD = "path_loss_lsq"
+# Used when there are too few readings to fit, or the fit fails.
+AP_FALLBACK_METHOD = "weighted_centroid"
+# The centroid start point uses the strongest readings only.
 AP_TOP_READINGS = 10
-AP_METHOD = "weighted_centroid"
+# A placement is confident with at least this many readings on its floor, spread
+# over at least this many meters (FR-24). Spread = 2 x the RMS distance of the
+# readings from their mean position, which is the distance between them for two
+# readings and about the width of the walked area for more.
+AP_MIN_READINGS = 5
+AP_MIN_SPREAD_M = 3.0
+# Defaults the fit is pulled towards (as weak priors) when the data cannot tell.
+AP_DEFAULT_P0_DBM = -40.0
+AP_DEFAULT_EXPONENT = 3.0
+AP_P0_RANGE_DBM = (-60.0, -20.0)
+AP_EXPONENT_RANGE = (2.0, 4.0)
+_AP_PRIOR_SIGMA_P0_DB = 10.0
+_AP_PRIOR_SIGMA_EXPONENT = 0.5
+# Height of the access point above the phone, so d never reaches 0 under it.
+AP_HEIGHT_M = 1.0
+# A fit needs at least this many readings; fewer use the centroid.
+AP_FIT_MIN_READINGS = 3
+# Only the strongest readings are fitted, which keeps big surveys fast.
+AP_FIT_MAX_READINGS = 200
+# The fitted point may sit outside the walked area (NFR-5), but never further
+# than this from the centroid start point. A clamped fit is low confidence.
+AP_MAX_OFFSET_M = 25.0
+_AP_MAX_ITERATIONS = 60
+# A walk narrower than this (2 x the RMS distance across its main direction, for
+# example one straight corridor) cannot tell which side of the line the access
+# point is on, so the fitted point is put back on the line.
+AP_MIN_WIDTH_M = 1.0
+# Confidence score: the fit's RMS residual (dB) at which the fit factor is 0.5.
+AP_RESIDUAL_HALF_DB = 8.0
 GRID_METHOD = "idw"
 
 LEVEL_GOOD = "good"
@@ -129,6 +164,12 @@ class AccessPoint:
     y: float
     reading_count: int
     max_rssi_dbm: int
+    method: str = AP_METHOD
+    # 0 to 1: how much the placement can be trusted (count, spread and fit).
+    confidence: float = 0.0
+    # True below AP_MIN_READINGS or AP_MIN_SPREAD_M, or when the fit failed (FR-24).
+    low_confidence: bool = True
+    spread_m: float = 0.0
 
 
 # --- projection -------------------------------------------------------------
@@ -399,12 +440,191 @@ def grid_cell_corners(
 # --- access points ----------------------------------------------------------
 
 
-def estimate_access_points(readings: list[Reading]) -> list[AccessPoint]:
-    """Weighted centroid of the strongest readings of each BSSID.
+def weighted_centroid(readings: list[Reading]) -> tuple[float, float]:
+    """Power-weighted centroid of the 10 strongest readings, ``10^(rssi/10)``.
 
-    The access point is placed on the floor of its single strongest reading, using
-    the 10 strongest readings on that floor with linear power ``10^(rssi/10)`` as
-    weights.
+    The v1.0 estimate (FR-14); now the start point of the fit and its fallback.
+    """
+    top = sorted(readings, key=lambda r: (-r.rssi, r.t))[:AP_TOP_READINGS]
+    weights = np.array([10 ** (r.rssi / 10) for r in top])
+    x = float(np.average([r.x for r in top], weights=weights))
+    y = float(np.average([r.y for r in top], weights=weights))
+    return x, y
+
+
+def spread_m(xs: np.ndarray, ys: np.ndarray) -> float:
+    """2 x the RMS distance of the points from their mean (0 for one point)."""
+    if xs.size == 0:
+        return 0.0
+    d2 = (xs - xs.mean()) ** 2 + (ys - ys.mean()) ** 2
+    return float(2.0 * math.sqrt(d2.mean()))
+
+
+@dataclass(frozen=True)
+class PathLossFit:
+    x: float
+    y: float
+    p0_dbm: float
+    exponent: float
+    rms_db: float
+    clamped: bool
+
+
+def path_loss_distance(rssi: float, p0_dbm: float, exponent: float) -> float:
+    """Range from RSSI by the log-distance model: ``10^((P0 - rssi) / (10 n))``."""
+    return 10 ** ((p0_dbm - rssi) / (10 * exponent))
+
+
+def _fit_starts(
+    xs: np.ndarray, ys: np.ndarray, start: tuple[float, float]
+) -> list[tuple[float, float]]:
+    """The centroid, then 8 points around it one spread away (at least 3 m).
+
+    A single start on the walked path often stops in a local minimum inside the
+    walked area, or on the line of a straight corridor walk.
+    """
+    radius = max(spread_m(xs, ys), AP_MIN_SPREAD_M)
+    return [start] + [
+        (
+            start[0] + radius * math.cos(k * math.pi / 4),
+            start[1] + radius * math.sin(k * math.pi / 4),
+        )
+        for k in range(8)
+    ]
+
+
+def _solve(residuals, theta: np.ndarray) -> tuple[float, np.ndarray] | None:
+    """Levenberg-Marquardt from ``theta``; ``(cost, theta)`` or None."""
+    res, jac = residuals(theta)
+    cost = float(res @ res)
+    damping = 1e-3
+    for _ in range(_AP_MAX_ITERATIONS):
+        normal = jac.T @ jac
+        step = np.linalg.solve(
+            normal + damping * np.diag(np.diag(normal) + 1e-9), -jac.T @ res
+        )
+        candidate = theta + step
+        new_res, new_jac = residuals(candidate)
+        new_cost = float(new_res @ new_res)
+        if not math.isfinite(new_cost):
+            damping *= 10
+            continue
+        if new_cost < cost:
+            done = cost - new_cost < 1e-9 * max(cost, 1.0)
+            theta, res, jac, cost = candidate, new_res, new_jac, new_cost
+            damping = max(damping / 10, 1e-9)
+            if done:
+                break
+        else:
+            damping *= 10
+            if damping > 1e9:
+                break
+    if not (math.isfinite(cost) and np.all(np.isfinite(theta))):
+        return None
+    return cost, theta
+
+
+def fit_path_loss(
+    xs: np.ndarray,
+    ys: np.ndarray,
+    rssi: np.ndarray,
+    start: tuple[float, float],
+) -> PathLossFit | None:
+    """Weighted least-squares fit of position, P0 and n (Levenberg-Marquardt).
+
+    Residuals are in dB: ``P0 - 10 n log10(d_i) - rssi_i`` with
+    ``d_i = sqrt(dx^2 + dy^2 + h^2)``. Strong readings weigh more (weight 1 at
+    the strongest, falling by half every 10 dB weaker), since far, weak readings
+    are the noisiest. P0 and n have weak priors at the defaults so that little or
+    one-sided data keeps them sane; both are then clamped to their ranges, and the
+    position to ``AP_MAX_OFFSET_M`` from ``start``. Returns None when the fit does
+    not give finite numbers.
+    """
+    weights = 1.0 / (1.0 + (rssi.max() - rssi) / 10.0)
+    sw = np.sqrt(weights)
+    prior_sw = np.array([1 / _AP_PRIOR_SIGMA_P0_DB, 1 / _AP_PRIOR_SIGMA_EXPONENT])
+    prior_mean = np.array([AP_DEFAULT_P0_DBM, AP_DEFAULT_EXPONENT])
+    h2 = AP_HEIGHT_M**2
+
+    def residuals(theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        x, y, p0, n = theta
+        dx, dy = x - xs, y - ys
+        d2 = dx * dx + dy * dy + h2
+        log_d = 0.5 * np.log10(d2)
+        res = sw * (p0 - 10 * n * log_d - rssi)
+        jac = np.empty((xs.size, 4))
+        k = -10 * n / math.log(10)
+        jac[:, 0] = sw * k * dx / d2
+        jac[:, 1] = sw * k * dy / d2
+        jac[:, 2] = sw
+        jac[:, 3] = sw * -10 * log_d
+        prior_res = prior_sw * (theta[2:] - prior_mean)
+        prior_jac = np.zeros((2, 4))
+        prior_jac[0, 2], prior_jac[1, 3] = prior_sw
+        return np.concatenate([res, prior_res]), np.vstack([jac, prior_jac])
+
+    best: tuple[float, np.ndarray] | None = None
+    for sx, sy in _fit_starts(xs, ys, start):
+        found = _solve(
+            residuals, np.array([sx, sy, AP_DEFAULT_P0_DBM, AP_DEFAULT_EXPONENT])
+        )
+        if found is not None and (best is None or found[0] < best[0]):
+            best = found
+    if best is None:
+        return None
+    theta = best[1]
+
+    x, y, p0, n = (float(v) for v in theta)
+    p0 = min(max(p0, AP_P0_RANGE_DBM[0]), AP_P0_RANGE_DBM[1])
+    n = min(max(n, AP_EXPONENT_RANGE[0]), AP_EXPONENT_RANGE[1])
+    offset = math.hypot(x - start[0], y - start[1])
+    clamped = offset > AP_MAX_OFFSET_M
+    if clamped:
+        scale = AP_MAX_OFFSET_M / offset
+        x = start[0] + (x - start[0]) * scale
+        y = start[1] + (y - start[1]) * scale
+    d = np.sqrt((x - xs) ** 2 + (y - ys) ** 2 + h2)
+    predicted = p0 - 10 * n * np.log10(d)
+    rms = float(np.sqrt(np.average((predicted - rssi) ** 2, weights=weights)))
+    return PathLossFit(x, y, p0, n, rms, clamped)
+
+
+def onto_walk_line(
+    x: float, y: float, xs: np.ndarray, ys: np.ndarray
+) -> tuple[float, float]:
+    """``(x, y)`` moved onto the walk's main line when the walk is narrower than
+    ``AP_MIN_WIDTH_M``; unchanged otherwise (or with fewer than 2 readings)."""
+    if xs.size < 2:
+        return x, y
+    mx, my = float(xs.mean()), float(ys.mean())
+    eigenvalues, eigenvectors = np.linalg.eigh(np.cov(np.vstack([xs, ys]), bias=True))
+    if 2.0 * math.sqrt(max(float(eigenvalues[0]), 0.0)) >= AP_MIN_WIDTH_M:
+        return x, y
+    ux, uy = (float(v) for v in eigenvectors[:, 1])  # the main direction
+    along = (x - mx) * ux + (y - my) * uy
+    return mx + along * ux, my + along * uy
+
+
+def placement_confidence(count: int, spread: float, rms_db: float | None) -> float:
+    """0 to 1 = count factor x spread factor x fit factor, rounded to 2 places.
+
+    Count and spread reach 1 at twice their minimums (10 readings, 6 m). The fit
+    factor is ``1 / (1 + (rms / 8 dB)^2)``, or 0 when there was no fit.
+    """
+    count_f = min(1.0, count / (2 * AP_MIN_READINGS))
+    spread_f = min(1.0, spread / (2 * AP_MIN_SPREAD_M))
+    fit_f = 0.0 if rms_db is None else 1.0 / (1.0 + (rms_db / AP_RESIDUAL_HALF_DB) ** 2)
+    return round(count_f * spread_f * fit_f, CONFIDENCE_DECIMALS)
+
+
+def estimate_access_points(readings: list[Reading]) -> list[AccessPoint]:
+    """Place each BSSID by a path-loss fit on the floor of its strongest reading.
+
+    Every access point is returned. With fewer than ``AP_MIN_READINGS`` on that
+    floor, less than ``AP_MIN_SPREAD_M`` of spread, or a fit that failed or had
+    to be clamped, it is flagged ``low_confidence`` (FR-24). With too few
+    readings to fit, or a failed fit, the weighted centroid is used instead and
+    ``method`` says so.
     """
     by_bssid: dict[str, list[Reading]] = defaultdict(list)
     for reading in readings:
@@ -414,10 +634,31 @@ def estimate_access_points(readings: list[Reading]) -> list[AccessPoint]:
     for bssid, group in sorted(by_bssid.items()):
         strongest = max(group, key=lambda r: (r.rssi, -r.t))
         on_floor = [r for r in group if r.floor_id == strongest.floor_id]
-        top = sorted(on_floor, key=lambda r: (-r.rssi, r.t))[:AP_TOP_READINGS]
-        weights = np.array([10 ** (r.rssi / 10) for r in top])
-        x = float(np.average([r.x for r in top], weights=weights))
-        y = float(np.average([r.y for r in top], weights=weights))
+        start = weighted_centroid(on_floor)
+        xs = np.array([r.x for r in on_floor])
+        ys = np.array([r.y for r in on_floor])
+        spread = spread_m(xs, ys)
+
+        fit = None
+        if len(on_floor) >= AP_FIT_MIN_READINGS:
+            used = sorted(on_floor, key=lambda r: (-r.rssi, r.t))[:AP_FIT_MAX_READINGS]
+            fit = fit_path_loss(
+                np.array([r.x for r in used]),
+                np.array([r.y for r in used]),
+                np.array([r.rssi for r in used], dtype=float),
+                start,
+            )
+        if fit is None:
+            (x, y), method, rms = start, AP_FALLBACK_METHOD, None
+        else:
+            x, y = onto_walk_line(fit.x, fit.y, xs, ys)
+            method, rms = AP_METHOD, fit.rms_db
+        low = (
+            fit is None
+            or fit.clamped
+            or len(on_floor) < AP_MIN_READINGS
+            or spread < AP_MIN_SPREAD_M
+        )
         estimates.append(
             AccessPoint(
                 floor_id=strongest.floor_id,
@@ -428,6 +669,10 @@ def estimate_access_points(readings: list[Reading]) -> list[AccessPoint]:
                 y=y,
                 reading_count=len(on_floor),
                 max_rssi_dbm=int(round(strongest.rssi)),
+                method=method,
+                confidence=placement_confidence(len(on_floor), spread, rms),
+                low_confidence=low,
+                spread_m=round(spread, 2),
             )
         )
     return estimates

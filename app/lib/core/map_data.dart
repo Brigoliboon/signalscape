@@ -26,6 +26,9 @@ class MapAccessPoint {
     required this.bssid,
     required this.rssiDbm,
     required this.readingCount,
+    this.confidence,
+    this.lowConfidence = true,
+    this.spreadM,
   });
 
   final LatLng at;
@@ -36,7 +39,36 @@ class MapAccessPoint {
   final int rssiDbm;
   final int readingCount;
 
+  /// 0 to 1, how far the placement can be trusted (FR-25). Null on results
+  /// processed before v1.1, which are not rated.
+  final double? confidence;
+
+  /// Fewer than 5 readings, less than 3 m of spread, or a poor fit (FR-24).
+  /// Unrated results count as low confidence, so a poor placement is never
+  /// drawn as a confident one.
+  final bool lowConfidence;
+
+  /// How widely the readings were spread, in meters.
+  final double? spreadM;
+
   String get name => ssid.isEmpty ? '(hidden network)' : ssid;
+
+  /// The line shown when the marker is tapped, for example
+  /// "Low confidence: 3 readings · spread 1.2 m".
+  String get confidenceText {
+    final readings =
+        '$readingCount ${readingCount == 1 ? 'reading' : 'readings'}';
+    final spread = spreadM == null
+        ? ''
+        : ' · spread ${spreadM!.toStringAsFixed(1)} m';
+    if (confidence == null) {
+      return 'Low confidence: $readings · not rated, process the survey again';
+    }
+    final percent = (confidence! * 100).round();
+    return lowConfidence
+        ? 'Low confidence: $readings$spread · $percent%'
+        : 'Confidence $percent%: $readings$spread';
+  }
 }
 
 /// The cells of one floor put back into a grid, with where it sits on the map,
@@ -373,6 +405,9 @@ MapAccessPoint? _accessPoint(Map geometry, Map props) {
     bssid: bssid,
     rssiDbm: rssi.toInt(),
     readingCount: (props['reading_count'] as num?)?.toInt() ?? 0,
+    confidence: (props['confidence'] as num?)?.toDouble(),
+    lowConfidence: props['low_confidence'] != false,
+    spreadM: (props['spread_m'] as num?)?.toDouble(),
   );
 }
 

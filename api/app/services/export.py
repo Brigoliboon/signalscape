@@ -135,6 +135,9 @@ def access_point_features(
                 "rssi_dbm": ap.max_rssi_dbm,
                 "method": ap.method,
                 "reading_count": ap.reading_count,
+                "confidence": ap.confidence,
+                "low_confidence": ap.low_confidence,
+                "spread_m": ap.spread_m,
             },
         }
         for ap in aps

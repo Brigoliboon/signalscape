@@ -271,9 +271,12 @@ def persist(
                 frequency_mhz=ap.frequency_mhz,
                 lat=lat,
                 lng=lng,
-                method=proc.AP_METHOD,
+                method=ap.method,
                 reading_count=ap.reading_count,
                 max_rssi_dbm=ap.max_rssi_dbm,
+                confidence=ap.confidence,
+                low_confidence=ap.low_confidence,
+                spread_m=ap.spread_m,
                 computed_at=now,
             )
         )
@@ -364,9 +367,12 @@ def computation_result(
                 frequency_mhz=ap.frequency_mhz,
                 lat=lat,
                 lng=lng,
-                method=proc.AP_METHOD,
+                method=ap.method,
                 reading_count=ap.reading_count,
                 max_rssi_dbm=ap.max_rssi_dbm,
+                confidence=ap.confidence,
+                low_confidence=ap.low_confidence,
+                spread_m=ap.spread_m,
             )
         )
     return ProcessResult(

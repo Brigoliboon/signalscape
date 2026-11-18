@@ -336,8 +336,13 @@ class _MapScreenState extends State<MapScreen> {
               Text('BSSID ${ap.bssid}', style: mono(size: 14)),
               const SizedBox(height: 4),
               Text(
-                'Strongest reading ${ap.rssiDbm} dBm, '
-                'placed from ${ap.readingCount} readings',
+                ap.confidenceText,
+                key: const ValueKey('ap-confidence'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Strongest reading ${ap.rssiDbm} dBm',
                 style: const TextStyle(color: AppColors.textMuted),
               ),
             ],
@@ -523,23 +528,13 @@ class _MapScreenState extends State<MapScreen> {
                       child: Semantics(
                         key: ValueKey('ap-${ap.bssid}'),
                         button: true,
-                        label: 'Access point ${ap.name}',
+                        label: ap.lowConfidence
+                            ? 'Access point ${ap.name}, low confidence'
+                            : 'Access point ${ap.name}',
                         child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () => _showAccessPoint(ap),
-                          child: Container(
-                            margin: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: _shadow,
-                            ),
-                            child: const Icon(
-                              Icons.wifi,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: ApMarker(lowConfidence: ap.lowConfidence),
                         ),
                       ),
                     ),
@@ -1059,6 +1054,32 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 4),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ApMarker(lowConfidence: false, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Access point',
+                        key: ValueKey('legend-ap'),
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ApMarker(lowConfidence: true, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Low confidence placement',
+                        key: ValueKey('legend-ap-low'),
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1071,3 +1092,98 @@ class _MapScreenState extends State<MapScreen> {
 
 /// Screens wider than this (dp) start with the legend open.
 const double _wideScreenDp = 600;
+
+/// An estimated access point (FR-25). Confident: a solid blue disc. Low
+/// confidence: a hollow blue ring at 40% opacity with a "?" badge, so it does
+/// not rely on colour alone. Not the green, amber or red of signal levels.
+class ApMarker extends StatelessWidget {
+  const ApMarker({super.key, required this.lowConfidence, this.size = 32});
+
+  final bool lowConfidence;
+
+  /// Diameter of the disc; the tap target around it is set by the caller.
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = size * 0.56;
+    if (!lowConfidence) {
+      return Center(
+        child: Container(
+          key: const ValueKey('ap-solid'),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: size / 16),
+            boxShadow: _apShadow,
+          ),
+          child: Icon(Icons.wifi, size: icon, color: Colors.white),
+        ),
+      );
+    }
+    final badge = size * 0.5;
+    return Center(
+      child: SizedBox(
+        key: const ValueKey('ap-hollow'),
+        width: size + badge / 2,
+        height: size + badge / 2,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: Opacity(
+                opacity: 0.4,
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary,
+                      width: size / 10,
+                    ),
+                  ),
+                  child: Icon(Icons.wifi, size: icon, color: AppColors.primary),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                width: badge,
+                height: badge,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.primary, width: 1),
+                ),
+                child: Text(
+                  '?',
+                  style: TextStyle(
+                    fontSize: badge * 0.7,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final List<BoxShadow> _apShadow = [
+  BoxShadow(
+    color: Colors.black.withValues(alpha: 0.6),
+    blurRadius: 4,
+    spreadRadius: 1,
+  ),
+];

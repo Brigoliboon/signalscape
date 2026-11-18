@@ -58,6 +58,7 @@ access_point_sort = sort_param(
         "ssid": AccessPointEstimate.ssid,
         "bssid": AccessPointEstimate.bssid,
         "reading_count": AccessPointEstimate.reading_count,
+        "confidence": AccessPointEstimate.confidence,
     },
     default="-max_rssi_dbm",
     tie_breaker=AccessPointEstimate.id,
@@ -161,6 +162,9 @@ def list_access_points(
             method=ap.method,
             reading_count=ap.reading_count,
             max_rssi_dbm=ap.max_rssi_dbm,
+            confidence=ap.confidence,
+            low_confidence=ap.low_confidence,
+            spread_m=ap.spread_m,
             computed_at=ap.computed_at,
         )
         for ap in result["items"]

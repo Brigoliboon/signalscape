@@ -40,6 +40,11 @@ Map<String, dynamic> ap(
   double lat,
   int floor, {
   String ssid = 'Lab',
+  String bssid = 'aa:bb:cc:dd:ee:01',
+  int readings = 7,
+  double? confidence,
+  bool? lowConfidence,
+  double? spreadM,
 }) => {
   'type': 'Feature',
   'geometry': {
@@ -49,10 +54,13 @@ Map<String, dynamic> ap(
   'properties': {
     'kind': 'access_point',
     'ssid': ssid,
-    'bssid': 'aa:bb:cc:dd:ee:01',
+    'bssid': bssid,
     'floor_level': floor,
     'rssi_dbm': -48,
-    'reading_count': 7,
+    'reading_count': readings,
+    'confidence': ?confidence,
+    'low_confidence': ?lowConfidence,
+    'spread_m': ?spreadM,
   },
 };
 
@@ -176,6 +184,53 @@ void main() {
       expect(aps.first.readingCount, 7);
       expect(aps.first.at, const LatLng(14.6002, 121.0002));
       expect(aps.last.name, '(hidden network)');
+    });
+
+    test('access points keep their placement confidence (FR-25)', () {
+      final data = SurveyMapData.parse(
+        geojson: collection([
+          ap(
+            121.0,
+            14.6,
+            0,
+            readings: 12,
+            confidence: 0.87,
+            lowConfidence: false,
+            spreadM: 6.42,
+          ),
+          ap(
+            121.0001,
+            14.6,
+            0,
+            bssid: 'aa:bb:cc:dd:ee:02',
+            readings: 3,
+            confidence: 0.12,
+            lowConfidence: true,
+            spreadM: 1.25,
+          ),
+          // processed before v1.1: no rating, so it counts as low confidence
+          ap(121.0002, 14.6, 0, bssid: 'aa:bb:cc:dd:ee:03', readings: 1),
+        ]),
+      );
+      final aps = data.floorAt(0)!.accessPoints;
+      expect(aps[0].confidence, 0.87);
+      expect(aps[0].lowConfidence, isFalse);
+      expect(aps[0].spreadM, 6.42);
+      expect(
+        aps[0].confidenceText,
+        'Confidence 87%: 12 readings · spread 6.4 m',
+      );
+      expect(aps[1].lowConfidence, isTrue);
+      expect(
+        aps[1].confidenceText,
+        'Low confidence: 3 readings · spread 1.3 m · 12%',
+      );
+      expect(aps[2].confidence, isNull);
+      expect(aps[2].lowConfidence, isTrue);
+      expect(
+        aps[2].confidenceText,
+        'Low confidence: 1 reading · not rated, process the survey again',
+      );
     });
 
     test('features that cannot be read are skipped', () {
