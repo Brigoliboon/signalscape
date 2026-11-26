@@ -668,7 +668,9 @@ class _Actions extends StatelessWidget {
                 value: c.outdoor,
                 onChanged: (value) => c.setOutdoor(value ?? false),
                 title: const Text('Outdoor survey'),
-                subtitle: const Text('Use GPS for positions, not step counting.'),
+                subtitle: const Text(
+                  'Use GPS for positions, not step counting.',
+                ),
                 contentPadding: EdgeInsets.zero,
                 dense: true,
               ),

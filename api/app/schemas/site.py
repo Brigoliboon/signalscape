@@ -6,7 +6,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
     model_validator,
 )
@@ -84,14 +83,10 @@ class SiteRead(BaseModel):
     owner_id: uuid.UUID
     name: str
     description: str | None
+    building_ids: list[uuid.UUID] = Field(default_factory=list)
     outdoor_area: list[OutdoorPoint] | None
     created_at: datetime
     updated_at: datetime
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def building_ids(self) -> list[uuid.UUID]:
-        return [building.id for building in self.buildings]
 
 
 class SiteDetail(SiteRead):

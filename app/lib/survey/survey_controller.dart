@@ -212,7 +212,12 @@ class SurveyController extends ChangeNotifier {
             fix = GpsFix(p.latitude, p.longitude, p.accuracy, DateTime.now());
             if (phase == SurveyPhase.acquiring) phase = SurveyPhase.ready;
             if (outdoor && phase == SurveyPhase.active && gpsGoodEnough) {
-              final local = toLocal(p.latitude, p.longitude, _originLat, _originLng);
+              final local = toLocal(
+                p.latitude,
+                p.longitude,
+                _originLat,
+                _originLng,
+              );
               tracker
                 ..x = local.x
                 ..y = local.y;

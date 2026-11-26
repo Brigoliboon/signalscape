@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models.building import Building
+from app.models.survey import Survey
 from app.models.user import User
 from app.schemas.report import AnalysisReport, ReportFacts, ReportUnavailable
 from app.schemas.result import Thresholds
@@ -22,6 +24,11 @@ def _thresholds(user: User) -> Thresholds:
     return Thresholds(
         good_dbm=user.good_threshold_dbm, dead_dbm=user.dead_threshold_dbm
     )
+
+
+def _survey_title(db: Session, survey: Survey) -> str:
+    building = db.get(Building, survey.building_id)
+    return building.name if building else "Survey"
 
 
 def _markdown(report: AnalysisReport) -> Response:
@@ -42,7 +49,7 @@ def survey_report_facts(
 ) -> ReportFacts:
     survey = get_survey_or_404(db, user, survey_id)
     require_processed(survey)
-    return report_service.facts_for_survey(db, survey, survey.building.name)
+    return report_service.facts_for_survey(db, survey, _survey_title(db, survey))
 
 
 @router.post("/api/surveys/{survey_id}/report", response_model=AnalysisReport)
@@ -54,7 +61,7 @@ def survey_report(
 ) -> AnalysisReport | Response:
     survey = get_survey_or_404(db, user, survey_id)
     require_processed(survey)
-    facts = report_service.facts_for_survey(db, survey, survey.building.name)
+    facts = report_service.facts_for_survey(db, survey, _survey_title(db, survey))
     try:
         generated = report_service.generate(facts)
     except ReportUnavailable as exc:

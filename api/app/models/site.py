@@ -80,3 +80,7 @@ class Site(Base):
         order_by="Building.name",
         passive_deletes=True,
     )
+
+    @property
+    def building_ids(self) -> list[uuid.UUID]:
+        return [building.id for building in self.buildings]
