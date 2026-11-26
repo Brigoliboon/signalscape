@@ -121,6 +121,15 @@ class SurveyController extends ChangeNotifier {
   /// is only suggested. Either way a manual pick always wins.
   bool autoSwitchFloors = false;
 
+  /// Outdoor survey (FR-35): use GPS fixes for reading positions instead of
+  /// dead reckoning. Indoor surveys keep the start fix and checkpoints.
+  bool outdoor = false;
+
+  void setOutdoor(bool value) {
+    outdoor = value;
+    _changed();
+  }
+
   /// A floor the barometer thinks the person is on, waiting for a tap.
   Floor? suggestion;
 
@@ -202,6 +211,12 @@ class SurveyController extends ChangeNotifier {
           (p) {
             fix = GpsFix(p.latitude, p.longitude, p.accuracy, DateTime.now());
             if (phase == SurveyPhase.acquiring) phase = SurveyPhase.ready;
+            if (outdoor && phase == SurveyPhase.active && gpsGoodEnough) {
+              final local = toLocal(p.latitude, p.longitude, _originLat, _originLng);
+              tracker
+                ..x = local.x
+                ..y = local.y;
+            }
             _changed();
           },
           onError: (Object e) {

@@ -6,6 +6,7 @@ class SurveyInfo {
     required this.surveyorId,
     required this.status,
     required this.startedAt,
+    this.surveyorName = '',
     this.endedAt,
     this.processedAt,
     this.deviceModel,
@@ -16,6 +17,7 @@ class SurveyInfo {
     id: j['id'] as String,
     buildingId: j['building_id'] as String,
     surveyorId: j['surveyor_id'] as String,
+    surveyorName: j['surveyor_name'] as String? ?? '',
     status: j['status'] as String,
     startedAt: DateTime.parse(j['started_at'] as String),
     endedAt: j['ended_at'] == null
@@ -31,6 +33,7 @@ class SurveyInfo {
   final String id;
   final String buildingId;
   final String surveyorId;
+  final String surveyorName;
 
   /// `active`, `paused`, `completed` or `processed`.
   final String status;

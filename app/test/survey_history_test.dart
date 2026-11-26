@@ -15,6 +15,7 @@ Map<String, dynamic> surveyJson(
   String id, {
   String building = 'b1',
   String surveyor = 'u1',
+  String surveyorName = 'Ada',
   String status = 'processed',
   String started = '2026-11-16T06:05:00Z',
   String? ended = '2026-11-16T06:50:00Z',
@@ -23,6 +24,7 @@ Map<String, dynamic> surveyJson(
   'id': id,
   'building_id': building,
   'surveyor_id': surveyor,
+  'surveyor_name': surveyorName,
   'status': status,
   'started_at': started,
   'ended_at': ended,
@@ -61,6 +63,8 @@ void main() {
     Future<http.Response> Function(http.Request)? onDelete,
     bool listFails = false,
     Future<LocalDb> Function()? openDb,
+    String? initialSurveyorId,
+    String? initialSurveyorName,
   }) async {
     tall(tester);
     calls = [];
@@ -94,6 +98,57 @@ void main() {
           'page_size': 100,
         });
       }
+      if (path.endsWith('/api/users')) {
+        return jsonResponse({
+          'items': [
+            {
+              'id': 'u2',
+              'email': 'ben@x.test',
+              'name': 'Ben',
+              'role': 'surveyor',
+              'is_active': true,
+              'consented_at': '2026-11-01T00:00:00Z',
+              'created_at': '2026-11-02T08:00:00Z',
+            },
+            {
+              'id': 'u3',
+              'email': 'cy@x.test',
+              'name': 'Cy',
+              'role': 'surveyor',
+              'is_active': true,
+              'consented_at': '2026-11-01T00:00:00Z',
+              'created_at': '2026-11-02T08:00:00Z',
+            },
+          ],
+          'total': 2,
+          'page': 1,
+          'page_size': 100,
+        });
+      }
+      if (path.endsWith('/summary')) {
+        final id = path.split('/')[3];
+        return jsonResponse({
+          'survey_id': id,
+          'status': 'processed',
+          'processed_at': '2026-11-16T06:55:00Z',
+          'floors': [
+            {
+              'floor_id': 'f1',
+              'floor_level': 0,
+              'floor_label': 'Ground',
+              'floor_height_m': 3.0,
+              'raw_reading_count': 10,
+              'cleaned_reading_count': 10,
+              'area_covered_m2': 11.0,
+              'good_pct': 100.0,
+              'fair_pct': 0.0,
+              'dead_pct': 0.0,
+              'thresholds': {'good_dbm': -67, 'dead_dbm': -80},
+              'access_point_count': 1,
+            },
+          ],
+        });
+      }
       if (path.endsWith('/api/surveys')) {
         if (listFails) return jsonResponse({'detail': 'Boom'}, 500);
         final q = req.url.queryParameters;
@@ -108,6 +163,12 @@ void main() {
           items = [
             for (final s in items)
               if (s['building_id'] == q['building_id']) s,
+          ];
+        }
+        if (q['surveyor_id'] != null) {
+          items = [
+            for (final s in items)
+              if (s['surveyor_id'] == q['surveyor_id']) s,
           ];
         }
         final pageNo = int.parse(q['page'] ?? '1');
@@ -125,6 +186,8 @@ void main() {
           session: session,
           pageSize: 2,
           openDb: openDb ?? () async => throw StateError('no db'),
+          initialSurveyorId: initialSurveyorId,
+          initialSurveyorName: initialSurveyorName,
         ),
       ),
     );
@@ -168,6 +231,68 @@ void main() {
     expect(calls.last.url.queryParameters['building_id'], 'b2');
     expect(find.byKey(const ValueKey('survey-s2')), findsOneWidget);
     expect(find.byKey(const ValueKey('survey-s1')), findsNothing);
+  });
+
+  testWidgets('an Admin sees who walked each survey', (tester) async {
+    await mount(
+      tester,
+      role: 'admin',
+      all: [surveyJson('s1', surveyor: 'u2', surveyorName: 'Ben')],
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Walked by Ben'), findsOneWidget);
+  });
+
+  testWidgets('a Surveyor does not get the surveyor filter', (tester) async {
+    await mount(tester);
+    expect(find.byKey(const ValueKey('surveyor-filter')), findsNothing);
+  });
+
+  testWidgets('an Admin filters by surveyor and sees the per-floor area', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      role: 'admin',
+      all: [
+        surveyJson('s1', surveyor: 'u2', surveyorName: 'Ben'),
+        surveyJson('s2', surveyor: 'u3', surveyorName: 'Cy'),
+      ],
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('surveyor-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ben').last);
+    await tester.pumpAndSettle();
+
+    final surveyCalls = calls
+        .where((c) => c.url.path.endsWith('/api/surveys'))
+        .toList();
+    expect(surveyCalls.last.url.queryParameters['surveyor_id'], 'u2');
+    expect(find.byKey(const ValueKey('surveyor-overview')), findsOneWidget);
+    expect(find.text('Ground — 11 m²'), findsOneWidget);
+    expect(find.textContaining('Walked by Ben'), findsOneWidget);
+    expect(find.byKey(const ValueKey('survey-s1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('survey-s2')), findsNothing);
+  });
+
+  testWidgets('arrives filtered from the Users screen with the overview', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      role: 'admin',
+      all: [surveyJson('s1', surveyor: 'u2', surveyorName: 'Ben')],
+      initialSurveyorId: 'u2',
+      initialSurveyorName: 'Ben',
+    );
+    await tester.pumpAndSettle();
+    final surveyCalls = calls
+        .where((c) => c.url.path.endsWith('/api/surveys'))
+        .toList();
+    expect(surveyCalls.last.url.queryParameters['surveyor_id'], 'u2');
+    expect(find.byKey(const ValueKey('surveyor-overview')), findsOneWidget);
+    expect(find.text('Ground — 11 m²'), findsOneWidget);
   });
 
   testWidgets('pages on demand', (tester) async {

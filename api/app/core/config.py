@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     bcrypt_rounds: int = Field(default=12, ge=4, le=15)
     # Where uploaded floor plan images are stored (a Docker volume in production).
     uploads_dir: str = "/data/uploads"
+    # AI analysis report (FR-36). One OpenAI-compatible chat completions provider;
+    # the key comes from the environment / GitHub Actions secrets, never the repo.
+    ai_api_key: str | None = None
+    ai_base_url: str = "https://api.openai.com/v1"
+    ai_model: str = "gpt-4o-mini"
+    ai_timeout_s: float = 30.0
 
 
 @lru_cache

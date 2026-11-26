@@ -311,6 +311,16 @@ def test_admin_sees_every_survey(world: World) -> None:
     assert nobody.json()["total"] == 0
 
 
+def test_survey_responses_include_the_surveyor_name(world: World) -> None:
+    detail = world.client.get(world.url, headers=world.headers)
+    assert detail.status_code == 200
+    assert detail.json()["surveyor_name"] == world.owner.name
+
+    listing = world.client.get("/api/surveys", headers=world.headers)
+    item = next(s for s in listing.json()["items"] if s["id"] == str(world.survey.id))
+    assert item["surveyor_name"] == world.owner.name
+
+
 def test_surveyor_cannot_filter_by_surveyor(world: World) -> None:
     response = world.client.get(
         f"/api/surveys?surveyor_id={world.owner.id}", headers=world.headers

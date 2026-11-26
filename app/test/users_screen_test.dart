@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:signalscape_mobile/data/session.dart';
 import 'package:signalscape_mobile/data/user_models.dart';
 import 'package:signalscape_mobile/screens/buildings_screen.dart';
+import 'package:signalscape_mobile/screens/survey_history_screen.dart';
 import 'package:signalscape_mobile/screens/users_screen.dart';
 import 'package:signalscape_mobile/theme.dart';
 
@@ -400,6 +401,45 @@ void main() {
       expect(find.text("You're offline. Nothing was changed."), findsOneWidget);
       expect(key('user-u2'), findsOneWidget);
     });
+  });
+
+  testWidgets('View surveys opens the filtered History', (tester) async {
+    server = (req) async {
+      final path = req.url.path;
+      if (path.endsWith('/api/buildings')) {
+        return jsonResponse({
+          'items': <Object>[],
+          'total': 0,
+          'page': 1,
+          'page_size': 100,
+        });
+      }
+      if (path.endsWith('/api/surveys')) {
+        return jsonResponse({
+          'items': <Object>[],
+          'total': 0,
+          'page': 1,
+          'page_size': 20,
+        });
+      }
+      return fake(req);
+    };
+    await mount(tester);
+    await openUser(tester, 'u2');
+    await tester.tap(key('view-surveys'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SurveyHistoryScreen), findsOneWidget);
+    final history = calls.where((c) => c.url.path.endsWith('/api/surveys'));
+    expect(
+      history.any((c) => c.url.queryParameters['surveyor_id'] == 'u2'),
+      isTrue,
+    );
+  });
+
+  testWidgets('a Viewer has no View surveys action', (tester) async {
+    await mount(tester);
+    await openUser(tester, 'u3');
+    expect(key('view-surveys'), findsNothing);
   });
 
   testWidgets('your own account has no delete, deactivate or role change', (

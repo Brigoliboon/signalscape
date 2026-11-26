@@ -11,6 +11,7 @@ SignalScape is the ITSD 85 (Special Topics in Software Development) final projec
 - Wi-Fi survey capture (RSSI) with indoor positioning and floor detection
 - Coverage gap filling (inverse distance weighting or kriging) and access point location estimates
 - Interactive 3D coverage view (Three.js)
+- Browser dashboard for consolidated campus maps, router coverage and AI analysis reports
 - Role-based access: Admin and Surveyor (Viewer optional)
 - Signal bands: good above -67 dBm, fair from -67 to -80 dBm, dead below -80 dBm
 
@@ -132,12 +133,13 @@ Set these in the repo under Settings → Secrets and variables → Actions:
 | `SITE_ADDRESS` | Public hostname Caddy serves (`signalscape.boonbrigoli.site`) |
 | `API_BASE_URL` | Public URL for the smoke test (`https://signalscape.boonbrigoli.site`) |
 | `MAPBOX_TOKEN` | Optional. Public Mapbox token baked into the release APK for the 2D map (empty means OpenStreetMap tiles) |
+| `AI_API_KEY` | Optional. Key for the AI analysis report (FR-36); without it, `/report` returns 503 but `/report/facts` still works. Never put the key in the repo. |
 
 ### Self-hosted runner
 CD deploys on a runner installed on the server (`runs-on: self-hosted`). The runner user must be able to run Docker. Add it from the GitHub repo: Settings → Actions → Runners → New self-hosted runner, then follow the Linux steps. The runner on the course VM is `signalscape-vm` (labels `self-hosted, Linux, X64, signalscape`).
 
 ### Public access
-Production runs at https://signalscape.boonbrigoli.site. An A record points that hostname at the VM, and the VM's cloud firewall and `iptables` allow TCP 80 and 443. Caddy serves the hostname from `SITE_ADDRESS`, gets its HTTPS certificate from Let's Encrypt automatically (stored in the `caddy_data` volume), sends `/api/*` to the API, and shows a placeholder page for everything else. Locally `SITE_ADDRESS` defaults to `:80`, plain HTTP.
+Production runs at https://signalscape.boonbrigoli.site. An A record points that hostname at the VM, and the VM's cloud firewall and `iptables` allow TCP 80 and 443. Caddy serves the hostname from `SITE_ADDRESS`, gets its HTTPS certificate from Let's Encrypt automatically (stored in the `caddy_data` volume), sends `/api/*` to the API, and redirects everything else to `/api/dashboard/`, the browser dashboard. Locally `SITE_ADDRESS` defaults to `:80`, plain HTTP.
 
 ## Documentation
 All in `docs/`:

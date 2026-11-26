@@ -30,6 +30,10 @@ Defined as fields of the `Settings` class (pydantic-settings). A setting is read
 | `BCRYPT_ROUNDS` | `12` (allowed 4 to 15) | Password hashing cost | The tests set it to `4` in `tests/conftest.py` for speed. |
 | `UPLOADS_DIR` | `/data/uploads` | Where floor plan images are stored | In Compose this path is the `uploads_data` volume. |
 | `APP_NAME` | `SignalScape API` | Title shown in the OpenAPI docs | Not set in deployment. |
+| `AI_API_KEY` | none | Key for the AI analysis report (FR-36) | **Secret.** Without it `/report` returns 503; `/report/facts` still works. |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | Base URL of the one OpenAI-compatible chat provider | No extra library: the call uses `urllib`. |
+| `AI_MODEL` | `gpt-4o-mini` | Model name sent to the provider | |
+| `AI_TIMEOUT_S` | `30` | Timeout for the provider call in seconds | |
 
 ## Docker Compose variables (`api/docker-compose.yml`)
 
@@ -44,6 +48,9 @@ Compose reads these from the shell or from `api/.env` next to the compose file.
 | `API_IMAGE` | `signalscape-api:local` | Image name and tag for the `api` service. The deploy job sets it to `ghcr.io/<owner>/<repo>/api:<commit sha>`. |
 | `API_PORT` | `8000` | Host port on `127.0.0.1` that maps to the API's port 8000 |
 | `SITE_ADDRESS` | `:80` | What Caddy serves. Production uses the hostname, which makes Caddy use HTTPS. |
+| `AI_API_KEY` | empty | Passed to the API container for the analysis report. Secret in production. |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | Provider base URL passed to the API container |
+| `AI_MODEL` | `gpt-4o-mini` | Provider model passed to the API container |
 
 `DATABASE_URL` for the API container is assembled inside the compose file from the `POSTGRES_*` values. The defaults are for local use only.
 
@@ -55,7 +62,7 @@ Compose reads these from the shell or from `api/.env` next to the compose file.
 
 ## Server `.env` (generated)
 
-The deploy job writes `api/.env` on the VM on every run. Variable names in it: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `JWT_SECRET`, `SITE_ADDRESS`, `API_IMAGE`. `POSTGRES_USER` and `POSTGRES_DB` are fixed in `cd.yml` (`signalscape`); the rest come from the secrets below. The server file's mode is 600.
+The deploy job writes `api/.env` on the VM on every run. Variable names in it: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `JWT_SECRET`, `SITE_ADDRESS`, `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `API_IMAGE`. `POSTGRES_USER` and `POSTGRES_DB` are fixed in `cd.yml` (`signalscape`); the rest come from the secrets below. The server file's mode is 600.
 
 ## GitHub Actions secrets
 
@@ -68,6 +75,9 @@ Set in the repository under Settings, Secrets and variables, Actions. Names read
 | `SITE_ADDRESS` | CD `deploy` job | Public hostname for Caddy (`signalscape.boonbrigoli.site`). A hostname is not secret, but it is stored as a secret. |
 | `API_BASE_URL` | CD smoke test | Public base URL, with `https://` and no trailing slash, that the smoke test calls for `/api/health` and `/api/docs`. The job fails if it is empty. |
 | `MAPBOX_TOKEN` | CI `app` job | Public Mapbox token baked into the release APK through `--dart-define=MAPBOX_TOKEN=...`. Empty means OpenStreetMap tiles. A `pk.` token ends up inside the APK, so restrict it in the Mapbox dashboard. |
+| `AI_API_KEY` | CD `deploy` job | Written to the server `.env` for the analysis report. Optional; leave unset to keep `/report` disabled and `/report/facts` available. Secret. |
+| `AI_BASE_URL` | CD `deploy` job | Optional provider base URL; the compose default is used when empty. |
+| `AI_MODEL` | CD `deploy` job | Optional model name; the compose default is used when empty. |
 | `GITHUB_TOKEN` (built in) | CD `publish` and `deploy` | Logs in to GitHub Container Registry. Created per run; nothing to configure. |
 
 Repository **variables**: none are defined (`gh variable list` is empty).

@@ -6,6 +6,7 @@ import '../data/api_client.dart';
 import '../data/session.dart';
 import '../data/user_models.dart';
 import '../theme.dart';
+import 'survey_history_screen.dart';
 
 /// How the user list can be ordered. [value] is the API's `sort`.
 enum UserSort {
@@ -33,16 +34,30 @@ enum UserStatusFilter {
 
 /// What an Admin chose in the details sheet.
 class _UserAction {
-  const _UserAction.role(this.role) : toggleActive = false, delete = false;
+  const _UserAction.role(this.role)
+    : toggleActive = false,
+      delete = false,
+      viewSurveys = false;
   const _UserAction.toggleActive()
     : role = null,
       toggleActive = true,
-      delete = false;
-  const _UserAction.delete() : role = null, toggleActive = false, delete = true;
+      delete = false,
+      viewSurveys = false;
+  const _UserAction.delete()
+    : role = null,
+      toggleActive = false,
+      delete = true,
+      viewSurveys = false;
+  const _UserAction.viewSurveys()
+    : role = null,
+      toggleActive = false,
+      delete = false,
+      viewSurveys = true;
 
   final String? role;
   final bool toggleActive;
   final bool delete;
+  final bool viewSurveys;
 }
 
 String roleLabel(String role) => switch (role) {
@@ -205,10 +220,21 @@ class _UsersScreenState extends State<UsersScreen> {
       builder: (_) => _UserSheet(user: u, isMe: u.id == _myId),
     );
     if (action == null || !mounted) return;
+    if (action.viewSurveys) return _viewSurveys(u);
     if (action.delete) return _delete(u);
     if (action.toggleActive) return _toggleActive(u);
     return _setRole(u, action.role!);
   }
+
+  Future<void> _viewSurveys(AdminUser u) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => SurveyHistoryScreen(
+        session: widget.session,
+        initialSurveyorId: u.id,
+        initialSurveyorName: u.name,
+      ),
+    ),
+  );
 
   void _replace(AdminUser updated) {
     final i = _items.indexWhere((x) => x.id == updated.id);
@@ -524,6 +550,16 @@ class _UserSheet extends StatelessWidget {
                 style: TextStyle(color: AppColors.textMuted),
               ),
             ] else ...[
+              if (user.role != 'viewer') ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  key: const ValueKey('view-surveys'),
+                  onPressed: () =>
+                      Navigator.pop(context, const _UserAction.viewSurveys()),
+                  icon: const Icon(Icons.history),
+                  label: const Text('View surveys'),
+                ),
+              ],
               const SizedBox(height: 16),
               OutlinedButton(
                 key: const ValueKey('toggle-active'),

@@ -106,6 +106,7 @@ class SurveyRead(BaseModel):
     id: uuid.UUID
     building_id: uuid.UUID
     surveyor_id: uuid.UUID
+    surveyor_name: str
     status: SurveyStatus
     started_at: datetime
     ended_at: datetime | None
