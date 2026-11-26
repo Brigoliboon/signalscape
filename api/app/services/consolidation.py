@@ -31,22 +31,30 @@ OUTDOOR_AREA_ID = uuid.UUID(int=0)
 OUTDOOR_LABEL = "Outdoor"
 
 
-def _inside_polygon(lat: float, lng: float, polygon: list[OutdoorPoint]) -> bool:
+def _corner(point: OutdoorPoint | dict) -> tuple[float, float]:
+    if isinstance(point, dict):
+        return float(point["lat"]), float(point["lng"])
+    return float(point.lat), float(point.lng)
+
+
+def _inside_polygon(lat: float, lng: float, polygon: list[OutdoorPoint | dict]) -> bool:
     """Ray casting on the lng/lat plane; boundary points count as inside."""
+    corners = [_corner(point) for point in polygon]
     inside = False
-    n = len(polygon)
+    n = len(corners)
     for i in range(n):
-        a, b = polygon[i], polygon[(i + 1) % n]
-        if (a.lat, a.lng) == (b.lat, b.lng):
+        a_lat, a_lng = corners[i]
+        b_lat, b_lng = corners[(i + 1) % n]
+        if (a_lat, a_lng) == (b_lat, b_lng):
             continue
-        cross = (b.lng - a.lng) * (lat - a.lat) - (b.lat - a.lat) * (lng - a.lng)
+        cross = (b_lng - a_lng) * (lat - a_lat) - (b_lat - a_lat) * (lng - a_lng)
         if abs(cross) < 1e-10 and (
-            min(a.lat, b.lat) <= lat <= max(a.lat, b.lat)
-            and min(a.lng, b.lng) <= lng <= max(a.lng, b.lng)
+            min(a_lat, b_lat) <= lat <= max(a_lat, b_lat)
+            and min(a_lng, b_lng) <= lng <= max(a_lng, b_lng)
         ):
             return True
-        if (a.lat > lat) != (b.lat > lat):
-            edge_lng = a.lng + (lat - a.lat) * (b.lng - a.lng) / (b.lat - a.lat)
+        if (a_lat > lat) != (b_lat > lat):
+            edge_lng = a_lng + (lat - a_lat) * (b_lng - a_lng) / (b_lat - a_lat)
             if lng < edge_lng:
                 inside = not inside
     return inside
