@@ -22,6 +22,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-signalscape}:${POSTGRES_PASSWORD:-signalscape}@db:5432/${POSTGRES_DB:-signalscape}
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
     volumes:
       - uploads_data:/data/uploads
     depends_on:

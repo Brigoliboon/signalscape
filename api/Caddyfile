@@ -8,6 +8,6 @@
 	}
 
 	handle {
-		respond "SignalScape dashboard coming soon" 200
+		redir /api/dashboard/
 	}
 }

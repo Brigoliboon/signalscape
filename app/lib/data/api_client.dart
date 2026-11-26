@@ -355,6 +355,7 @@ class ApiClient {
   Future<SurveyPage> surveyPage({
     String? buildingId,
     String? status,
+    String? surveyorId,
     int page = 1,
     int pageSize = 20,
     String sort = '-started_at',
@@ -365,6 +366,7 @@ class ApiClient {
           query: {
             'building_id': ?buildingId,
             'status': ?status,
+            'surveyor_id': ?surveyorId,
             'page': '$page',
             'page_size': '$pageSize',
             'sort': sort,

@@ -662,6 +662,18 @@ class _Actions extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (c.gpsGoodEnough)
+              CheckboxListTile(
+                key: const ValueKey('outdoor-toggle'),
+                value: c.outdoor,
+                onChanged: (value) => c.setOutdoor(value ?? false),
+                title: const Text('Outdoor survey'),
+                subtitle: const Text(
+                  'Use GPS for positions, not step counting.',
+                ),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
             FilledButton.icon(
               onPressed: c.gpsGoodEnough ? c.start : null,
               icon: const Icon(Icons.play_arrow),

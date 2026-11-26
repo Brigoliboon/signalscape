@@ -69,6 +69,9 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SITE_ADDRESS: ${{ secrets.SITE_ADDRESS }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           repo="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
@@ -79,6 +82,9 @@ jobs:
           POSTGRES_DB=signalscape
           JWT_SECRET=${JWT_SECRET}
           SITE_ADDRESS=${SITE_ADDRESS}
+          AI_API_KEY=${AI_API_KEY}
+          AI_BASE_URL=${AI_BASE_URL}
+          AI_MODEL=${AI_MODEL}
           API_IMAGE=ghcr.io/${repo}/api:${IMAGE_TAG}
           EOF
       - name: Pull image and restart stack

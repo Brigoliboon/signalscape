@@ -61,6 +61,16 @@ void main() {
     await db.close();
   });
 
+  group('outdoor GPS (FR-35)', () {
+    test('outdoor mode is off by default and can be changed', () {
+      expect(c.outdoor, isFalse);
+      c.setOutdoor(true);
+      expect(c.outdoor, isTrue);
+      c.setOutdoor(false);
+      expect(c.outdoor, isFalse);
+    });
+  });
+
   group('floor detection (FR-9)', () {
     test('suggests the detected floor and waits for a tap', () {
       c.onFloorDetected(1);

@@ -136,7 +136,7 @@ curl -sS -X POST $BASE/surveys -H "$AUTH" -H 'Content-Type: application/json' -d
 ```
 
 ```json
-{"id":"6b3db87d-a279-4204-b9e7-02ba6d8c6bf7","building_id":"2f994e14-…","surveyor_id":"0314e219-…","status":"active","started_at":"…","ended_at":null,"device_model":"Pixel 7","has_barometer":true,"origin_lat":14.5995,"origin_lng":120.9842,"origin_accuracy_m":6.5,"step_length_m":0.7,"notes":null,"processed_at":null,"created_at":"…","updated_at":"…"}
+{"id":"6b3db87d-a279-4204-b9e7-02ba6d8c6bf7","building_id":"2f994e14-…","surveyor_id":"0314e219-…","surveyor_name":"Sam Surveyor","status":"active","started_at":"…","ended_at":null,"device_model":"Pixel 7","has_barometer":true,"origin_lat":14.5995,"origin_lng":120.9842,"origin_accuracy_m":6.5,"step_length_m":0.7,"notes":null,"processed_at":null,"created_at":"…","updated_at":"…"}
 ```
 
 Upload readings (1 to 1000 per request). Each reading needs a `client_id` UUID that you generate. Sending the same `client_id` again is skipped, so retries are safe:
@@ -274,7 +274,10 @@ Survey list with filters (`status`, `building_id`, `from`, `to`, and `surveyor_i
 
 ```bash
 curl -sS "$BASE/surveys?status=processed&page_size=5" -H "$AUTH"
+curl -sS "$BASE/surveys?surveyor_id=<user-id>" -H "$AUTH"   # Admins only
 ```
+
+Every survey object includes `surveyor_name`, a read-only value taken from the owning account, so an Admin can see who walked each survey. A non-Admin who sends `surveyor_id` gets `403`.
 
 ## 5. Sharing with a Viewer
 
@@ -294,6 +297,42 @@ All under `/api/users`, admin only: `GET` (filters `role`, `is_active`, `q`; pag
 
 - `GET /api/health` needs no login and returns `{"status":"ok"}`, or `503` with `{"detail":"database unavailable"}`. The deploy smoke test uses it.
 - The 3D page is a static page at `/api/viewer/`. The app opens it with `#survey=<id>&token=<jwt>` in the URL fragment, so the token is never sent to a server. The page reads data from the same API routes shown above (`summary`, `coverage`, `access-points`, `networks`, `trail`, and `routers` in router coverage mode).
+
+## 8. Sites, consolidation and reports
+
+All need the bearer token. Admins see every site; surveyors see their own; viewers see none.
+
+```bash
+# A campus with two buildings and the grounds between them
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"CISC campus","building_ids":["<building id>"],
+       "outdoor_area":[{"lat":14.5990,"lng":120.9830},
+                       {"lat":14.6000,"lng":120.9830},
+                       {"lat":14.6000,"lng":120.9850}]}' \
+  http://localhost:8000/api/sites
+
+# Merge surveys into one coverage map, one set of access points and the dead/weak layer
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"survey_ids":["<survey id>","<survey id>"]}' \
+  http://localhost:8000/api/sites/<site id>/consolidate
+
+# Figures for a survey or a site, available without an AI provider
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/surveys/<survey id>/report/facts
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"survey_ids":["<survey id>"]}' \
+  http://localhost:8000/api/sites/<site id>/report/facts
+
+# AI-written Markdown report; add ?format=md for a downloadable file
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/surveys/<survey id>/report
+```
+
+`GET /api/sites` supports `q`, `owner_id` (admin only), `page`, `page_size` and `sort=name|created_at`. `POST .../consolidate` returns the strongest-signal IDW grids, the access points and per-floor percentages; nothing is stored. If `AI_API_KEY` is missing, `/report` answers `503` with a clear detail while `/report/facts` still returns the figures.
+
+## 9. Browser dashboard
+
+The static dashboard is served at `/api/dashboard/` and Caddy redirects the site root there. It signs in through `/api/auth/login`, picks a site, building and survey, shows the existing Three.js page in an iframe, draws GeoJSON or consolidated coverage on a canvas, and opens router coverage and the analysis report. Its requests carry the JWT; the page itself holds no data.
 
 ## Not verified
 

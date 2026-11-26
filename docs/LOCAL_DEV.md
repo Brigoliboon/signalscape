@@ -113,6 +113,14 @@ node --test tests/js/levels.test.mjs tests/js/heat.test.mjs
 
 On Node 24, pass the file path as shown; passing only the folder fails. These tests are not part of CI, so run them when you change `levels.mjs` or `heat.mjs`. The same heatmap maths exists in Dart (`app/lib/core/heatmap.dart`, tested by `flutter test`); change both together.
 
+## The browser dashboard and its JavaScript tests
+
+The dashboard is plain static files in `api/app/static/dashboard/`, served at `/api/dashboard/`. Caddy redirects the public root there. It signs in with `/api/auth/login`, keeps the JWT in `sessionStorage`, and calls the same authenticated API routes as the app; `tests/test_dashboard.py` checks the headers and that the page loads only its own files. The pure helpers in `dashboard.mjs` (projection, level colours, grid bounds, layer visibility) have Node tests:
+
+```bash
+node --test tests/js/dashboard.test.mjs
+```
+
 ## Flutter app
 
 ```bash

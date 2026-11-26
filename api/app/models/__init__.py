@@ -2,6 +2,7 @@
 
 from app.models.building import Building, Floor
 from app.models.result import AccessPointEstimate, CoverageGrid
+from app.models.site import Site, site_buildings
 from app.models.survey import (
     Checkpoint,
     CheckpointSource,
@@ -20,9 +21,11 @@ __all__ = [
     "CoverageGrid",
     "Floor",
     "ScanReading",
+    "Site",
     "Survey",
     "SurveyShare",
     "SurveyStatus",
     "User",
     "UserRole",
+    "site_buildings",
 ]

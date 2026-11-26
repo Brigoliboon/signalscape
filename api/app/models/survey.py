@@ -2,6 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     REAL,
@@ -23,9 +24,12 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import MACADDR, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 DEFAULT_STEP_LENGTH_M = Decimal("0.7")
 # The GPS fix that anchors a survey must be at least this good (DESIGN.md section 1).
@@ -124,6 +128,12 @@ class Survey(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    surveyor: Mapped["User"] = relationship(lazy="joined")
+
+    @property
+    def surveyor_name(self) -> str:
+        return self.surveyor.name
 
 
 class ScanReading(Base):

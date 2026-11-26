@@ -62,6 +62,7 @@ An empty list says "No buildings yet. Add the first one to start surveying." (Vi
 If your role is **Admin**, the **Buildings** screen has a **Manage users** card under the "SIGNED IN AS" line. Surveyors and Viewers do not see it, and the server refuses user management to them anyway.
 
 - The **Users** screen lists every account with its role and, if the account is switched off, "Inactive". The line under the search box says how many users match. Search by name or email, pick a role chip (**All roles**, **Admin**, **Surveyor**, **Viewer**), filter by **Any status / Active / Inactive**, and sort by **Newest first**, **Name A–Z** or **Email A–Z**. **Load more** shows the next page and pull down to refresh.
+- **View surveys** on a Surveyor or Admin row opens **Survey history** filtered to that person, with their overview at the top (section 13).
 - Tap a user to open their details: email, whether the account is active, when it was created, and (for Surveyors) whether privacy consent was given.
 - **Role:** tap another role to change it. Making an Admin into something else asks first.
 - **Deactivate account** asks first. A deactivated user cannot sign in, but their buildings and surveys stay. **Reactivate account** turns it back on without asking.
@@ -97,6 +98,8 @@ The survey screen opens with the title "Survey · <floor>". The status card show
 - **READY TO SCAN**: the fix is good enough.
 
 Stand where you want the map to start. Near a window or doorway the GPS fix is usually good enough. Then tap **Start survey**. This GPS position becomes the starting point of the survey; from then on the phone estimates your position from your steps and compass heading (dead reckoning).
+
+For a walk **outdoors** (between buildings on a campus), turn on **Outdoor survey** before starting. The phone then uses each good GPS fix for your position instead of step counting. Leave it off inside a building, where GPS is not reliable.
 
 The top right shows **ONLINE** or **OFFLINE**.
 
@@ -148,8 +151,9 @@ Pressing back during a survey asks "Leave this survey?" ("Readings already taken
 
 The **clock icon** at the top right of the Buildings screen opens **Survey history**: every survey you may see, newest first. A surveyor sees their own surveys, an admin sees all of them, and a viewer sees the ones shared with them.
 
-- Each card shows the building, when the survey started and its status: **In progress**, **Paused**, **Not processed** (finished but no heatmap yet) or **Processed**.
-- The chips at the top filter by status (**All**, **Processed**, **Not processed**, **In progress**) and the dropdown filters by building. Pull down to refresh, and **Load more** shows the next page.
+- Each card shows the building, when the survey started and its status: **In progress**, **Paused**, **Not processed** (finished but no heatmap yet) or **Processed**. It also says **Walked by** the surveyor's name.
+- The chips at the top filter by status (**All**, **Processed**, **Not processed**, **In progress**) and the dropdown filters by building. An **Admin** also gets a surveyor dropdown to show one person's surveys; **All surveyors** clears it. Pull down to refresh, and **Load more** shows the next page.
+- With a surveyor selected, an **Admin** sees a summary card first: how many of that person's surveys are processed, and the covered area per floor as each processed survey reported it. It is not merged or deduplicated. A survey with no processed area says "No processed area yet". The survey cards below are that person's plot history; tap one for its maps.
 - Tap a card for its details: status, start time, length, when it was processed, the phone used and any notes.
   - **Open on the 2D map** and **Open in 3D** show the results. For a survey that is not processed, the map says "Not processed yet" and a surveyor sees **Process now**.
   - **Delete survey** (surveyors and admins; not viewers, and a surveyor only for their own surveys) asks you to confirm first, then removes the survey for good with its readings, checkpoints, heatmaps and estimated access points. If the phone still had that survey saved as unfinished, that note is cleared too.
@@ -204,6 +208,16 @@ The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D
 - **Start at an entrance or window** so the starting GPS fix is good (10 m or better).
 - **Add floors first**, with correct heights, so the barometer can detect floor changes.
 - Keep the phone **charged and the app open on screen** during the survey. One survey can span several floors; switch floors as you move.
+
+## 18. Browser dashboard (DTO staff)
+
+Open `https://signalscape.boonbrigoli.site` on a desktop browser and sign in with your SignalScape account. DTO staff use the Admin role.
+
+- Pick a **Site**, **Building** and **Survey** at the top. An Admin can also create a site from the **Admin: add a site** panel by naming it and ticking its buildings; an optional outdoor polygon can be set through the API.
+- **Open 3D** shows the survey in the existing Three.js viewer. **Open coverage** draws its GeoJSON cells on a 2D canvas. The heatmap and dead & weak layer can be toggled under **Layers**.
+- **Router coverage** lists each extended network, its likely main router and extenders, and the weak/dead gaps between them.
+- Under **Consolidate a campus view**, tick the surveys to merge and press **Merge selected surveys** to see one coverage map and one set of access points for the whole site.
+- **Analysis report** opens the coverage figures. **Generate report** writes a Markdown summary and recommendations; **Export Markdown** downloads the original. Without an AI key the page says so, and the figures remain readable.
 
 ## What the app does not have yet
 

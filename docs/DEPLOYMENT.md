@@ -100,7 +100,7 @@ Docker Compose reads that file for substitution in `docker-compose.yml`. The fil
 - The site address is `{$SITE_ADDRESS::80}`. In production `SITE_ADDRESS` is the hostname, so Caddy serves it over HTTPS and gets a certificate from Let's Encrypt automatically (the Caddy logs show ACME renewal checks for `signalscape.boonbrigoli.site`). Locally it defaults to `:80`, plain HTTP.
 - `encode gzip` for responses.
 - `/api/*` is proxied to `api:8000`.
-- Everything else returns the text `SignalScape dashboard coming soon`.
+- Everything else redirects to `/api/dashboard/`, the browser dashboard served by the API.
 
 Certificates live in the `signalscape_caddy_data` volume, so they survive redeploys. Ports 80 and 443 must stay reachable from the internet for issuance and renewal. Do not delete that volume casually: Let's Encrypt limits how many certificates it will issue for a hostname each week.
 

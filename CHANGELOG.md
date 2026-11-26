@@ -2,6 +2,13 @@
 
 Notable changes to SignalScape, newest first. The first public release is 1.0.0. The git tag `v1.0` is added after the release pull request is merged, not in the pull request itself.
 
+## Unreleased (v1.1 DTO extension)
+
+- Campus sites that group buildings and an optional outdoor polygon, plus consolidation of selected surveys into one coverage map and one set of access point estimates.
+- Outdoor survey capture that uses GPS positions instead of dead reckoning.
+- AI-written Markdown analysis reports for a survey or a consolidated campus view, with the provider key in server secrets and figures still exportable when no provider is configured.
+- Browser dashboard at the site root: sign-in, site/building/survey pickers, 2D and reused 3D maps with the dead and weak layer, router coverage and report export.
+
 ## 1.0.0 - 2026-11-16
 
 First feature-complete release of the API, the Flutter Android app and the docs. Boon tested the full flow on a real phone on 2026-11-16 and it was good.

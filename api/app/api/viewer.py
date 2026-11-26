@@ -19,12 +19,13 @@ VIEWER_PATH = "/api/viewer"
 mimetypes.add_type("text/javascript", ".mjs")
 
 # The page loads only its own files and talks only to its own origin. Three.js and
-# OrbitControls are vendored, so no third-party host is involved.
+# OrbitControls are vendored, so no third-party host is involved. It may only be
+# framed by the dashboard on this same origin.
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'none'; script-src 'self'; style-src 'self'; "
         "img-src 'self' data:; connect-src 'self'; base-uri 'none'; "
-        "form-action 'none'; frame-ancestors 'none'"
+        "form-action 'none'; frame-ancestors 'self'"
     ),
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",

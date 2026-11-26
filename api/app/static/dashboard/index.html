@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>SignalScape dashboard</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>SignalScape</h1>
+    <span id="identity" role="status" aria-live="polite"></span>
+    <button id="sign-out" class="quiet" type="button" hidden>Sign out</button>
+  </header>
+
+  <main>
+    <section id="sign-in" class="card" aria-label="Sign in">
+      <h2>Sign in</h2>
+      <p class="note">Use your SignalScape account to open campus coverage maps.</p>
+      <form id="login-form">
+        <label>Email <input id="email" type="email" required autocomplete="username"></label>
+        <label>Password <input id="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">Sign in</button>
+      </form>
+      <p id="login-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <div id="workspace" hidden>
+      <section class="card" aria-label="Map picker">
+        <h2>Maps</h2>
+        <div class="pickers">
+          <label>Site <select id="site" aria-label="Site"></select></label>
+          <label>Building <select id="building" aria-label="Building"></select></label>
+          <label>Survey <select id="survey" aria-label="Survey"></select></label>
+        </div>
+        <div class="actions">
+          <button id="open-3d" type="button">Open 3D</button>
+          <button id="open-2d" type="button">Open coverage</button>
+          <button id="open-routers" type="button">Router coverage</button>
+          <button id="open-report" type="button">Analysis report</button>
+        </div>
+
+        <fieldset id="consolidate-set">
+          <legend>Consolidate a campus view</legend>
+          <p class="note">Select surveys on this site and merge their coverage.</p>
+          <div id="consolidation-surveys"></div>
+          <button id="consolidate" type="button">Merge selected surveys</button>
+        </fieldset>
+
+        <fieldset id="admin-set" hidden>
+          <legend>Admin: add a site</legend>
+          <label>Name <input id="site-name" maxlength="200" aria-label="Site name"></label>
+          <div id="site-buildings"></div>
+          <button id="create-site" type="button">Create site</button>
+        </fieldset>
+      </section>
+
+      <section id="layers" class="card" aria-label="Layers" hidden>
+        <h2>Layers</h2>
+        <label class="check"><input id="show-heat" type="checkbox" checked> Coverage heatmap</label>
+        <label class="check"><input id="show-zones" type="checkbox" checked> Dead &amp; weak zones</label>
+        <p id="legend" class="note"></p>
+      </section>
+
+      <section id="view" aria-label="Coverage view">
+        <iframe id="viewer" title="3D coverage" hidden></iframe>
+        <canvas id="map" aria-label="2D coverage map" role="img" hidden></canvas>
+        <div id="routers" class="card" hidden aria-label="Router coverage"></div>
+      </section>
+
+      <section id="report" class="card" hidden aria-label="Analysis report">
+        <h2>Analysis report</h2>
+        <div id="report-facts"></div>
+        <pre id="report-text" tabindex="0"></pre>
+        <div class="actions">
+          <button id="generate-report" type="button">Generate report</button>
+          <button id="export-report" class="quiet" type="button" hidden>Export Markdown</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <script type="module" src="dashboard.mjs"></script>
+</body>
+</html>
