@@ -332,7 +332,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 
 ## 9. Browser dashboard
 
-The static dashboard is served at `/api/dashboard/` and Caddy redirects the site root there. It signs in through `/api/auth/login`, picks a site, building and survey, shows the existing Three.js page in an iframe, draws GeoJSON or consolidated coverage on a canvas, and opens router coverage and the analysis report. Its requests carry the JWT; the page itself holds no data.
+The static dashboard is served at `/api/dashboard/` and Caddy redirects the site root there. It signs in through `/api/auth/login`, lists sites, buildings and surveys (`GET /api/sites`, `/api/buildings`, `/api/surveys`, all pages read to the end), and for one survey reads `GET /api/surveys/{id}/geojson` and `/report/facts`. Router coverage uses `/routers`, a campus merge uses `POST /api/sites/{id}/consolidate`, and reports use `POST /api/surveys/{id}/report` or `POST /api/sites/{id}/report`. The 3D view is the Three.js page at `/api/viewer/` in an iframe. Only surveys with status `processed` can be opened. Its requests carry the JWT; the page itself holds no data and adds no routes.
 
 ## Not verified
 

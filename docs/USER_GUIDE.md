@@ -213,11 +213,27 @@ The **summary icon** (a page with lines) in the top bar of the 2D map and the 3D
 
 Open `https://signalscape.boonbrigoli.site` on a desktop browser and sign in with your SignalScape account. DTO staff use the Admin role.
 
-- Pick a **Site**, **Building** and **Survey** at the top. An Admin can also create a site from the **Admin: add a site** panel by naming it and ticking its buildings; an optional outdoor polygon can be set through the API.
-- **Open 3D** shows the survey in the existing Three.js viewer. **Open coverage** draws its GeoJSON cells on a 2D canvas. The heatmap and dead & weak layer can be toggled under **Layers**.
-- **Router coverage** lists each extended network, its likely main router and extenders, and the weak/dead gaps between them.
-- Under **Consolidate a campus view**, tick the surveys to merge and press **Merge selected surveys** to see one coverage map and one set of access points for the whole site.
-- **Analysis report** opens the coverage figures. **Generate report** writes a Markdown summary and recommendations; **Export Markdown** downloads the original. Without an AI key the page says so, and the figures remain readable.
+The page has three parts, left to right: choose, look, understand.
+
+**Choose (left).**
+- Pick **One survey** or **Campus merge** at the top.
+- In One survey, narrow the list with **Site** and **Building**, then tick one survey. It opens at once. Surveys that are not processed yet are greyed out and say so; process them in the app first. When you arrive, the newest processed survey is already open.
+- In Campus merge, pick a **Site**, tick the surveys to combine (**All** and **None** help) and press **Merge**. This gives one coverage map and one set of routers for the whole site.
+- Admins also have **New site...**: name it and tick its buildings. An optional outdoor polygon can be set through the API.
+
+**Look (middle).**
+- **Coverage** draws the survey one floor at a time. Choose the floor with the chips above the map; a floor with nothing to draw is greyed out. Drag to move, scroll or use **+** and **-** to zoom, and **Fit** to start over. Hover over a cell to read its signal in dBm; hover over a router for its details. The legend and scale bar sit on the map. Dead cells are hatched, so you do not need to tell the colours apart.
+- **Routers** shows routers numbered on the map. Pick a **Network** to see its likely main router, its extenders and the links between them (solid is covered, dashed is partly weak, dotted is partly dead). Which router is the main one is a guess from signal strength.
+- **3D** opens the survey in the 3D viewer. Routers and 3D open for one survey at a time, so they are off in Campus merge.
+- On keyboard: arrow keys move the map, **+** and **-** zoom, **0** fits it.
+
+**Understand (right).**
+- **Summary** leads with the share of the surveyed area that has good signal, then the weak and dead shares, readings, area, routers placed, and a table by floor. Click a floor name to show it on the map.
+- **Layers** turns good coverage, weak and dead zones, and router positions on and off.
+- **Routers** lists each network, its routers and its links.
+- **Report**: **Write report** writes a summary and recommendations from the stored figures. It can take up to a minute and you can **Cancel**. Then **Copy** it or **Download .md**. Without an AI key the page says so, and the figures in Summary stay available.
+
+The address bar keeps what you have open, so you can bookmark it or send the link to another signed-in person. The link never contains your sign-in.
 
 ## What the app does not have yet
 

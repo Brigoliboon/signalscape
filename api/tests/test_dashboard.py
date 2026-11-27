@@ -10,7 +10,8 @@ from fastapi.testclient import TestClient
 
 from app.api.dashboard import DASHBOARD_DIR, SECURITY_HEADERS
 
-OUR_FILES = ["index.html", "dashboard.mjs", "dashboard.css"]
+SCRIPTS = ["dashboard.mjs", "lib.mjs", "mapview.mjs"]
+OUR_FILES = ["index.html", "dashboard.css", *SCRIPTS]
 
 
 def test_page_is_served_without_login(client: TestClient) -> None:
@@ -28,8 +29,31 @@ def test_page_is_served_without_login(client: TestClient) -> None:
         "map",
         "viewer",
         "report",
+        "stage",
+        "view-tabs",
+        "inspector-tabs",
+        "summary-body",
+        "legend",
+        "toasts",
     ):
         assert f'id="{element}"' in response.text
+
+
+def test_page_has_the_landmarks_and_labels_a_keyboard_user_needs() -> None:
+    html = (DASHBOARD_DIR / "index.html").read_text()
+    assert '<html lang="en">' in html
+    assert 'class="skip-link" href="#stage"' in html
+    assert html.count("<h1") >= 2  # sign-in and the stage each have one
+    for role in (
+        'role="tablist"',
+        'role="tabpanel"',
+        'role="radiogroup"',
+        'role="status"',
+    ):
+        assert role in html
+    # Every form control has a visible label.
+    for control in ("email", "password", "site", "building", "network", "site-name"):
+        assert f'for="{control}"' in html, control
 
 
 def test_missing_slash_redirects_to_the_page(client: TestClient) -> None:
@@ -38,7 +62,7 @@ def test_missing_slash_redirects_to_the_page(client: TestClient) -> None:
     assert response.headers["location"].endswith("/api/dashboard/")
 
 
-@pytest.mark.parametrize("path", ["", "dashboard.mjs", "dashboard.css"])
+@pytest.mark.parametrize("path", ["", "dashboard.css", *SCRIPTS])
 def test_security_headers(client: TestClient, path: str) -> None:
     response = client.get(f"/api/dashboard/{path}")
     assert response.status_code == 200
@@ -54,12 +78,16 @@ def test_security_headers(client: TestClient, path: str) -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-def test_scripts_and_styles_have_the_right_content_type(client: TestClient) -> None:
-    script = client.get("/api/dashboard/dashboard.mjs")
+@pytest.mark.parametrize("name", SCRIPTS)
+def test_modules_have_a_javascript_content_type(client: TestClient, name: str) -> None:
+    script = client.get(f"/api/dashboard/{name}")
     assert script.status_code == 200
     assert script.headers["content-type"].startswith(
         ("text/javascript", "application/javascript")
     )
+
+
+def test_styles_have_the_right_content_type(client: TestClient) -> None:
     assert (
         client.get("/api/dashboard/dashboard.css")
         .headers["content-type"]
@@ -74,9 +102,13 @@ def test_page_talks_only_to_its_own_origin() -> None:
 
 
 def test_page_does_not_use_innerhtml_or_inline_handlers() -> None:
-    script = (DASHBOARD_DIR / "dashboard.mjs").read_text()
-    assert "innerHTML" not in script
-    assert "insertAdjacentHTML" not in script
+    for name in SCRIPTS:
+        script = (DASHBOARD_DIR / name).read_text()
+        assert "innerHTML" not in script, name
+        assert "outerHTML" not in script, name
+        assert "insertAdjacentHTML" not in script, name
+        assert "document.write" not in script, name
+        assert "eval(" not in script, name
     html = (DASHBOARD_DIR / "index.html").read_text()
     assert not re.search(r"\son[a-z]+=", html)
     assert "<script>" not in html
@@ -114,9 +146,10 @@ NODE = shutil.which("node")
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
-def test_dashboard_script_has_valid_syntax() -> None:
+@pytest.mark.parametrize("name", SCRIPTS)
+def test_dashboard_script_has_valid_syntax(name: str) -> None:
     result = subprocess.run(
-        [NODE, "--check", str(DASHBOARD_DIR / "dashboard.mjs")],
+        [NODE, "--check", str(DASHBOARD_DIR / name)],
         capture_output=True,
         text=True,
         timeout=60,
