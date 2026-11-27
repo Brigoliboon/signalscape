@@ -321,7 +321,25 @@ The numbered path from a walk-and-scan on the phone, through upload and the clea
 
 **Analysis report (FR-36):** figures are read from stored results (`/report/facts`) and never from the model: reading counts, good/fair/dead percentages, per-floor figures, and access point placement confidence. One configured OpenAI-compatible chat provider writes a Markdown summary and recommendations (`AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT_S`). The API uses `urllib`, so there is no new library. `?format=md` returns the Markdown file. A missing key or failed call gives a 503 with a clear message; the facts and the plotted layers stay exportable.
 
-**Web dashboard (FR-37, NFR-7):** a static page at `/api/dashboard/` (Caddy redirects the site root there) signs in through `/api/auth/login` and keeps the JWT in `sessionStorage`. It offers site/building/survey pickers, the existing Three.js viewer in a same-origin iframe (`frame-ancestors 'self'`), a canvas 2D view built from GeoJSON cells or consolidated grids with heatmap and dead/weak toggles, router coverage mode, and the report panel with Markdown export. The page holds no data, writes all API text with `textContent` under a strict CSP, and inherits the API's role rules: Admin for the DTO site work, Surveyor for their own surveys, Viewer through shares.
+**Web dashboard (FR-37, NFR-7):** a static page at `/api/dashboard/` (Caddy redirects the site root there) signs in through `/api/auth/login` and keeps the JWT in `sessionStorage`. The page holds no data, writes all API text with `textContent` under a strict CSP, and inherits the API's role rules: Admin for the DTO site work, Surveyor for their own surveys, Viewer through shares.
+
+The layout follows the order of the task, left to right. **Choose** (data panel): One survey or Campus merge, then site, building and a list of surveys. **Look** (stage): Coverage, Routers or 3D tabs, floor chips, and a canvas map. **Understand** (inspector): Summary, Layers, Routers and Report tabs. The selection lives in the URL fragment (`#survey=...&view=routers`, never the token), so a view can be bookmarked or sent.
+
+Design decisions, and the principle behind each:
+
+| Decision | Principle |
+| --- | --- |
+| App shell with a top bar, a left list and a main canvas, tabs for views, a segmented control for modes | Jakob's law: it works like tools staff already use |
+| Selecting a survey opens it at once; the newest processed survey opens on arrival; the view tab, not an Open button, picks the view | Hick's law and Fitts's law: fewer choices and fewer clicks to the goal |
+| Three panels, each with one job; the summary leads with one number, the share of good signal, then the detail | Miller's law and progressive disclosure: chunks, not a wall of controls |
+| Filters narrow each other (site, then building, then survey); unprocessed surveys stay visible but disabled, with the reason | Error prevention and recognition over recall |
+| Controls for one task sit together (floor chips and zoom above the map; legend on it); the primary action in each panel is the only filled button | Proximity, common region and the von Restorff effect |
+| Loading, empty and error states say what is happening and what to do, with Retry; a report can be cancelled; toasts confirm without blocking | Visibility of system status, user control and freedom, and the Doherty threshold |
+| Same dark theme and the same Good, Weak and Dead colours as the phone app; level is also named and dead cells are hatched | Consistency, and WCAG 1.4.1: colour is never the only signal |
+| System fonts, a 4 px spacing scale, one type scale, tabular numbers for dBm | Aesthetic-usability effect and a consistent rhythm |
+| Contrast of 4.5:1 for text and 3:1 for control edges, visible focus, ARIA tabs and radio groups, arrow-key map control, reduced-motion support, a skip link | WCAG 2.2 AA and operability from the keyboard |
+
+The map is a canvas in local metres, so cells are true squares and the scale bar is exact. It draws one floor at a time; a floor with nothing to draw in the current view is disabled rather than shown blank. The code is in three modules: `lib.mjs` (pure helpers with Node tests), `mapview.mjs` (canvas, pan, zoom, hover) and `dashboard.mjs` (state and page).
 
 ## 7. Open decisions
 

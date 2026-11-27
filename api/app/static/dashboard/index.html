@@ -4,85 +4,216 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>SignalScape dashboard</title>
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#060A12">
+  <title>SignalScape</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="dashboard.css">
 </head>
-<body>
-  <header class="topbar">
-    <h1>SignalScape</h1>
-    <span id="identity" role="status" aria-live="polite"></span>
-    <button id="sign-out" class="quiet" type="button" hidden>Sign out</button>
-  </header>
+<body data-state="boot">
+  <a class="skip-link" href="#stage">Skip to the map</a>
+  <noscript><p class="noscript">The SignalScape dashboard needs JavaScript.</p></noscript>
 
-  <main>
-    <section id="sign-in" class="card" aria-label="Sign in">
-      <h2>Sign in</h2>
-      <p class="note">Use your SignalScape account to open campus coverage maps.</p>
-      <form id="login-form">
-        <label>Email <input id="email" type="email" required autocomplete="username"></label>
-        <label>Password <input id="password" type="password" required autocomplete="current-password"></label>
-        <button type="submit">Sign in</button>
+  <!-- Sign in: one task, one card, nothing else on the page. -->
+  <main id="sign-in" class="auth" aria-labelledby="sign-in-title">
+    <div class="auth-card">
+      <div class="brand brand-large"><span class="mark" aria-hidden="true"></span><span>SignalScape</span></div>
+      <h1 id="sign-in-title">Sign in</h1>
+      <p class="muted">Open campus Wi-Fi coverage maps and reports with your SignalScape account.</p>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="login-error">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-group">
+            <input id="password" name="password" type="password" required autocomplete="current-password" aria-describedby="login-error">
+            <button id="toggle-password" class="btn ghost small" type="button" aria-pressed="false" aria-controls="password">Show</button>
+          </div>
+        </div>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <button id="login-submit" class="btn primary block" type="submit">Sign in</button>
       </form>
-      <p id="login-error" class="error" role="alert" hidden></p>
-    </section>
-
-    <div id="workspace" hidden>
-      <section class="card" aria-label="Map picker">
-        <h2>Maps</h2>
-        <div class="pickers">
-          <label>Site <select id="site" aria-label="Site"></select></label>
-          <label>Building <select id="building" aria-label="Building"></select></label>
-          <label>Survey <select id="survey" aria-label="Survey"></select></label>
-        </div>
-        <div class="actions">
-          <button id="open-3d" type="button">Open 3D</button>
-          <button id="open-2d" type="button">Open coverage</button>
-          <button id="open-routers" type="button">Router coverage</button>
-          <button id="open-report" type="button">Analysis report</button>
-        </div>
-
-        <fieldset id="consolidate-set">
-          <legend>Consolidate a campus view</legend>
-          <p class="note">Select surveys on this site and merge their coverage.</p>
-          <div id="consolidation-surveys"></div>
-          <button id="consolidate" type="button">Merge selected surveys</button>
-        </fieldset>
-
-        <fieldset id="admin-set" hidden>
-          <legend>Admin: add a site</legend>
-          <label>Name <input id="site-name" maxlength="200" aria-label="Site name"></label>
-          <div id="site-buildings"></div>
-          <button id="create-site" type="button">Create site</button>
-        </fieldset>
-      </section>
-
-      <section id="layers" class="card" aria-label="Layers" hidden>
-        <h2>Layers</h2>
-        <label class="check"><input id="show-heat" type="checkbox" checked> Coverage heatmap</label>
-        <label class="check"><input id="show-zones" type="checkbox" checked> Dead &amp; weak zones</label>
-        <p id="legend" class="note"></p>
-      </section>
-
-      <section id="view" aria-label="Coverage view">
-        <iframe id="viewer" title="3D coverage" hidden></iframe>
-        <canvas id="map" aria-label="2D coverage map" role="img" hidden></canvas>
-        <div id="routers" class="card" hidden aria-label="Router coverage"></div>
-      </section>
-
-      <section id="report" class="card" hidden aria-label="Analysis report">
-        <h2>Analysis report</h2>
-        <div id="report-facts"></div>
-        <pre id="report-text" tabindex="0"></pre>
-        <div class="actions">
-          <button id="generate-report" type="button">Generate report</button>
-          <button id="export-report" class="quiet" type="button" hidden>Export Markdown</button>
-        </div>
-      </section>
     </div>
   </main>
 
-  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <div id="app" class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="mark" aria-hidden="true"></span><span>SignalScape</span></div>
+      <nav class="crumbs" aria-label="Current selection"><ol id="crumbs"></ol></nav>
+      <div class="user">
+        <span id="identity" class="user-name"></span>
+        <span id="role" class="badge"></span>
+        <button id="sign-out" class="btn ghost small" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <!-- 1. Choose: what to look at. -->
+    <aside class="scope" aria-label="Choose data">
+      <div class="scope-head">
+        <h2>Data</h2>
+        <div class="segmented" role="radiogroup" aria-label="What to open">
+          <input type="radio" id="mode-survey" name="mode" value="survey" checked>
+          <label for="mode-survey">One survey</label>
+          <input type="radio" id="mode-campus" name="mode" value="campus">
+          <label for="mode-campus">Campus merge</label>
+        </div>
+      </div>
+
+      <div class="scope-filters">
+        <div class="field">
+          <label for="site">Site</label>
+          <select id="site"></select>
+        </div>
+        <div class="field" id="building-field">
+          <label for="building">Building</label>
+          <select id="building"></select>
+        </div>
+      </div>
+
+      <div class="scope-list">
+        <div id="survey-block">
+          <div class="list-head">
+            <h3 id="survey-label">Surveys</h3>
+            <span id="survey-count" class="muted small-text"></span>
+          </div>
+          <div id="survey" class="choice-list" role="radiogroup" aria-labelledby="survey-label"></div>
+        </div>
+
+        <div id="campus-block" hidden>
+          <div class="list-head">
+            <h3 id="merge-label">Surveys to merge</h3>
+            <span class="list-tools">
+              <button id="merge-all" class="link" type="button">All</button>
+              <button id="merge-none" class="link" type="button">None</button>
+            </span>
+          </div>
+          <div id="merge-list" class="choice-list" role="group" aria-labelledby="merge-label"></div>
+        </div>
+      </div>
+
+      <div class="scope-foot">
+        <button id="merge" class="btn primary block" type="button" hidden>Merge surveys</button>
+        <button id="new-site" class="btn ghost block" type="button" hidden>New site&hellip;</button>
+      </div>
+    </aside>
+
+    <!-- 2. Look: the map. -->
+    <main id="stage" class="stage" tabindex="-1" aria-labelledby="title">
+      <div class="stage-head">
+        <div class="stage-title">
+          <h1 id="title">Choose a survey</h1>
+          <p id="subtitle" class="muted"></p>
+        </div>
+        <div id="view-tabs" class="tabs" role="tablist" aria-label="View">
+          <button id="tab-coverage" class="tab" role="tab" type="button" data-view="coverage" aria-selected="true" aria-controls="canvas-wrap">Coverage</button>
+          <button id="tab-routers" class="tab" role="tab" type="button" data-view="routers" aria-selected="false" aria-controls="canvas-wrap" tabindex="-1">Routers</button>
+          <button id="tab-3d" class="tab" role="tab" type="button" data-view="3d" aria-selected="false" aria-controls="canvas-wrap" tabindex="-1">3D</button>
+        </div>
+      </div>
+
+      <div id="stage-bar" class="stage-bar">
+        <div id="floors" class="chips" role="group" aria-label="Floor"></div>
+        <div id="network-field" class="inline-field" hidden>
+          <label for="network">Network</label>
+          <select id="network"></select>
+        </div>
+        <div class="zoom" role="group" aria-label="Zoom">
+          <button id="zoom-out" class="btn ghost icon" type="button" aria-label="Zoom out">&minus;</button>
+          <button id="zoom-in" class="btn ghost icon" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-fit" class="btn ghost small" type="button">Fit</button>
+        </div>
+      </div>
+
+      <div id="canvas-wrap" class="canvas-wrap" role="tabpanel" aria-labelledby="title">
+        <canvas id="map" tabindex="0" role="img" aria-label="Coverage map" aria-describedby="map-desc map-keys"></canvas>
+        <iframe id="viewer" title="3D coverage view" hidden></iframe>
+
+        <p id="map-desc" class="sr-only"></p>
+        <p id="map-keys" class="sr-only">Arrow keys move the map, plus and minus zoom, zero fits it to the window.</p>
+
+        <div id="hover" class="readout" hidden></div>
+
+        <div id="legend" class="legend" aria-label="Legend" hidden></div>
+        <div id="scale" class="scale" aria-hidden="true" hidden><span id="scale-bar" class="scale-bar"></span><span id="scale-label"></span></div>
+
+        <div id="state" class="state" role="status" aria-live="polite">
+          <div class="state-body">
+            <span id="state-spinner" class="spinner" aria-hidden="true" hidden></span>
+            <h2 id="state-title"></h2>
+            <p id="state-text" class="muted"></p>
+            <button id="state-action" class="btn primary" type="button" hidden></button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 3. Understand: figures, layers, routers, report. -->
+    <aside class="inspector" aria-label="Details">
+      <div id="inspector-tabs" class="tabs tabs-fill" role="tablist" aria-label="Details">
+        <button id="itab-summary" class="tab" role="tab" type="button" data-tab="summary" aria-selected="true" aria-controls="panel-summary">Summary</button>
+        <button id="itab-layers" class="tab" role="tab" type="button" data-tab="layers" aria-selected="false" aria-controls="panel-layers" tabindex="-1">Layers</button>
+        <button id="itab-routers" class="tab" role="tab" type="button" data-tab="routers" aria-selected="false" aria-controls="panel-routers" tabindex="-1">Routers</button>
+        <button id="itab-report" class="tab" role="tab" type="button" data-tab="report" aria-selected="false" aria-controls="report" tabindex="-1">Report</button>
+      </div>
+
+      <section id="panel-summary" class="panel" role="tabpanel" aria-labelledby="itab-summary">
+        <div id="summary-body"></div>
+      </section>
+
+      <section id="panel-layers" class="panel" role="tabpanel" aria-labelledby="itab-layers" hidden>
+        <fieldset class="toggles">
+          <legend>Show on the map</legend>
+          <label class="switch"><input id="show-good" type="checkbox" checked><span class="swatch good" aria-hidden="true"></span><span class="switch-text">Good coverage<small id="hint-good"></small></span></label>
+          <label class="switch"><input id="show-zones" type="checkbox" checked><span class="swatch zone" aria-hidden="true"></span><span class="switch-text">Weak and dead zones<small id="hint-zones"></small></span></label>
+          <label class="switch"><input id="show-routers" type="checkbox" checked><span class="swatch router" aria-hidden="true"></span><span class="switch-text">Router positions<small>Faded pins have low confidence.</small></span></label>
+        </fieldset>
+        <p id="layers-note" class="muted small-text"></p>
+      </section>
+
+      <section id="panel-routers" class="panel" role="tabpanel" aria-labelledby="itab-routers" hidden>
+        <div id="routers-body"></div>
+      </section>
+
+      <section id="report" class="panel" role="tabpanel" aria-labelledby="itab-report" hidden>
+        <div id="report-intro">
+          <p class="muted">A written summary and recommendations for what is open now, made from the stored figures. It can take up to a minute.</p>
+        </div>
+        <div class="report-actions">
+          <button id="generate-report" class="btn primary" type="button">Write report</button>
+          <button id="cancel-report" class="btn ghost" type="button" hidden>Cancel</button>
+          <button id="copy-report" class="btn ghost" type="button" hidden>Copy</button>
+          <button id="export-report" class="btn ghost" type="button" hidden>Download .md</button>
+        </div>
+        <p id="report-status" class="muted small-text" role="status" aria-live="polite"></p>
+        <article id="report-doc" class="doc" tabindex="0" aria-label="Written report" hidden></article>
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="site-dialog" aria-labelledby="site-title">
+    <form id="site-form" method="dialog" novalidate>
+      <h2 id="site-title">New site</h2>
+      <p class="muted">A site groups buildings so their surveys can be merged into one campus map.</p>
+      <div class="field">
+        <label for="site-name">Name</label>
+        <input id="site-name" maxlength="200" required autocomplete="off" aria-describedby="site-error">
+      </div>
+      <fieldset class="field">
+        <legend>Buildings</legend>
+        <div id="site-buildings" class="choice-list compact"></div>
+      </fieldset>
+      <p id="site-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="site-cancel" class="btn ghost" type="button">Cancel</button>
+        <button id="site-create" class="btn primary" type="submit">Create site</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
   <script type="module" src="dashboard.mjs"></script>
 </body>
 </html>

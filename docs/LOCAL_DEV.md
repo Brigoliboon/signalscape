@@ -115,7 +115,7 @@ On Node 24, pass the file path as shown; passing only the folder fails. These te
 
 ## The browser dashboard and its JavaScript tests
 
-The dashboard is plain static files in `api/app/static/dashboard/`, served at `/api/dashboard/`. Caddy redirects the public root there. It signs in with `/api/auth/login`, keeps the JWT in `sessionStorage`, and calls the same authenticated API routes as the app; `tests/test_dashboard.py` checks the headers and that the page loads only its own files. The pure helpers in `dashboard.mjs` (projection, level colours, grid bounds, layer visibility) have Node tests:
+The dashboard is plain static files in `api/app/static/dashboard/`, served at `/api/dashboard/`. Caddy redirects the public root there. It signs in with `/api/auth/login`, keeps the JWT in `sessionStorage`, and calls the same authenticated API routes as the app; `tests/test_dashboard.py` checks the headers, that the page loads only its own files, and that no script writes HTML. There is no build step. The code is split into `lib.mjs` (pure helpers: projection, signal levels, floor figures, URL state, the Markdown reader), `mapview.mjs` (the canvas map) and `dashboard.mjs` (the page). The pure helpers have Node tests:
 
 ```bash
 node --test tests/js/dashboard.test.mjs
