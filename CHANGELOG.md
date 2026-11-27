@@ -9,6 +9,7 @@ Notable changes to SignalScape, newest first. The first public release is 1.0.0.
 - AI-written Markdown analysis reports for a survey or a consolidated campus view, with the provider key in server secrets and figures still exportable when no provider is configured.
 - Browser dashboard at the site root: sign-in, site/building/survey pickers, 2D and reused 3D maps with the dead and weak layer, router coverage and report export.
 - Dashboard redesign: a choose, look, understand layout; a map you can pan, zoom and hover, with a legend, scale bar and one floor at a time; cascading pickers; shareable links; a readable report view; keyboard and screen reader support; loading, empty and error states. Fixes a Building picker that did nothing, unprocessed surveys that could be opened and failed, floors drawn on top of each other, and a campus merge that showed 0% good.
+- Fixed the site-root redirect to `/api/dashboard/`: `redir` needs an explicit matcher, so the previous `redir /api/dashboard/` failed to load. CI now validates the Caddyfile.
 
 ## 1.0.0 - 2026-11-16
 

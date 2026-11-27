@@ -8,6 +8,6 @@
 	}
 
 	handle {
-		redir /api/dashboard/
+		redir * /api/dashboard/
 	}
 }
